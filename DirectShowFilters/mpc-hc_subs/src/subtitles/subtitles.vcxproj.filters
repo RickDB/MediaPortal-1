@@ -26,16 +26,10 @@
     <ClCompile Include="GFN.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="HdmvSub.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="Rasterizer.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RealTextParser.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderedHdmvSubtitle.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="RTS.cpp">
@@ -82,16 +76,10 @@
     <ClInclude Include="GFN.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="HdmvSub.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="Rasterizer.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RealTextParser.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderedHdmvSubtitle.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="RTS.h">

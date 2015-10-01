@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2012 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -32,8 +32,10 @@ protected:
     CSize  m_maxsize;
     CSize  m_size;
     CRect  m_vidrect;
-    CSize  m_VirtualTextureSize;
-    CPoint m_VirtualTextureTopLeft;
+    CSize  m_virtualTextureSize;
+    CPoint m_virtualTextureTopLeft;
+    bool   m_bInvAlpha;
+    RelativeTo m_relativeTo;
 
     /*
 
@@ -73,53 +75,54 @@ public:
 
     // ISubPic
 
-    STDMETHODIMP_(REFERENCE_TIME) GetStart();
-    STDMETHODIMP_(REFERENCE_TIME) GetStop();
+    STDMETHODIMP_(REFERENCE_TIME) GetStart() const;
+    STDMETHODIMP_(REFERENCE_TIME) GetStop() const;
     STDMETHODIMP_(void) SetStart(REFERENCE_TIME rtStart);
     STDMETHODIMP_(void) SetStop(REFERENCE_TIME rtStop);
 
-    STDMETHODIMP GetDesc(SubPicDesc& spd) = 0;
+    STDMETHODIMP GetDesc(SubPicDesc& spd) PURE;
     STDMETHODIMP CopyTo(ISubPic* pSubPic);
 
-    STDMETHODIMP ClearDirtyRect(DWORD color) = 0;
-    STDMETHODIMP GetDirtyRect(RECT* pDirtyRect);
-    STDMETHODIMP SetDirtyRect(RECT* pDirtyRect);
+    STDMETHODIMP ClearDirtyRect(DWORD color) PURE;
+    STDMETHODIMP GetDirtyRect(RECT* pDirtyRect) const;
+    STDMETHODIMP SetDirtyRect(const RECT* pDirtyRect);
 
-    STDMETHODIMP GetMaxSize(SIZE* pMaxSize);
+    STDMETHODIMP GetMaxSize(SIZE* pMaxSize) const;
     STDMETHODIMP SetSize(SIZE size, RECT vidrect);
 
-    STDMETHODIMP Lock(SubPicDesc& spd) = 0;
-    STDMETHODIMP Unlock(RECT* pDirtyRect) = 0;
+    STDMETHODIMP Lock(SubPicDesc& spd) PURE;
+    STDMETHODIMP Unlock(RECT* pDirtyRect) PURE;
 
-    STDMETHODIMP AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget) = 0;
+    STDMETHODIMP AlphaBlt(RECT* pSrc, RECT* pDst, SubPicDesc* pTarget) PURE;
 
     STDMETHODIMP SetVirtualTextureSize(const SIZE pSize, const POINT pTopLeft);
-    STDMETHODIMP GetSourceAndDest(SIZE* pSize, RECT* pRcSource, RECT* pRcDest);
+    STDMETHODIMP GetSourceAndDest(RECT rcWindow, RECT rcVideo, RECT* pRcSource, RECT* pRcDest) const;
+    STDMETHODIMP GetRelativeTo(RelativeTo* pRelativeTo) const;
+    STDMETHODIMP SetRelativeTo(RelativeTo relativeTo);
 
-    STDMETHODIMP_(REFERENCE_TIME) GetSegmentStart();
-    STDMETHODIMP_(REFERENCE_TIME) GetSegmentStop();
+    STDMETHODIMP_(REFERENCE_TIME) GetSegmentStart() const;
+    STDMETHODIMP_(REFERENCE_TIME) GetSegmentStop() const;
     STDMETHODIMP_(void) SetSegmentStart(REFERENCE_TIME rtStart);
     STDMETHODIMP_(void) SetSegmentStop(REFERENCE_TIME rtStop);
-
+    STDMETHODIMP_(bool) GetInverseAlpha() const;
+    STDMETHODIMP_(void) SetInverseAlpha(bool bInverted);
 };
 
 
 class CSubPicAllocatorImpl : public CUnknown, public ISubPicAllocator
 {
+private:
+    CCritSec m_staticLock;
     CComPtr<ISubPic> m_pStatic;
 
-private:
     CSize m_cursize;
     CRect m_curvidrect;
     bool m_fDynamicWriteOnly;
 
-    virtual bool Alloc(bool fStatic, ISubPic** ppSubPic) = 0;
-
-protected:
-    bool m_fPow2Textures;
+    virtual bool Alloc(bool fStatic, ISubPic** ppSubPic) PURE;
 
 public:
-    CSubPicAllocatorImpl(SIZE cursize, bool fDynamicWriteOnly, bool fPow2Textures);
+    CSubPicAllocatorImpl(SIZE cursize, bool fDynamicWriteOnly);
 
     DECLARE_IUNKNOWN;
     STDMETHODIMP NonDelegatingQueryInterface(REFIID riid, void** ppv);
@@ -130,7 +133,8 @@ public:
     STDMETHODIMP SetCurVidRect(RECT curvidrect);
     STDMETHODIMP GetStatic(ISubPic** ppSubPic);
     STDMETHODIMP AllocDynamic(ISubPic** ppSubPic);
-    STDMETHODIMP_(bool) IsDynamicWriteOnly();
+    STDMETHODIMP_(bool) IsDynamicWriteOnly() const;
     STDMETHODIMP ChangeDevice(IUnknown* pDev);
-    STDMETHODIMP SetMaxTextureSize(SIZE MaxTextureSize) { return E_NOTIMPL; };
+    STDMETHODIMP SetMaxTextureSize(SIZE maxTextureSize) PURE;
+    STDMETHODIMP FreeStatic();
 };

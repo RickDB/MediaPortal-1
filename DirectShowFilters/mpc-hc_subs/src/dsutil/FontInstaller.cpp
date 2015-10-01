@@ -23,6 +23,11 @@
 #include "FontInstaller.h"
 
 CFontInstaller::CFontInstaller()
+    : pAddFontMemResourceEx(nullptr)
+    , pAddFontResourceEx(nullptr)
+    , pRemoveFontMemResourceEx(nullptr)
+    , pRemoveFontResourceEx(nullptr)
+    , pMoveFileEx(nullptr)
 {
     if (HMODULE hGdi = GetModuleHandle(_T("gdi32.dll"))) {
         pAddFontMemResourceEx = (HANDLE(WINAPI*)(PVOID, DWORD, PVOID, DWORD*))GetProcAddress(hGdi, "AddFontMemResourceEx");
@@ -67,7 +72,7 @@ void CFontInstaller::UninstallFonts()
             CString fn = m_files.GetNext(pos);
             pRemoveFontResourceEx(fn, FR_PRIVATE, 0);
             if (!DeleteFile(fn) && pMoveFileEx) {
-                pMoveFileEx(fn, NULL, MOVEFILE_DELAY_UNTIL_REBOOT);
+                pMoveFileEx(fn, nullptr, MOVEFILE_DELAY_UNTIL_REBOOT);
             }
         }
 
@@ -82,7 +87,7 @@ bool CFontInstaller::InstallFontMemory(const void* pData, UINT len)
     }
 
     DWORD nFonts = 0;
-    HANDLE hFont = pAddFontMemResourceEx((PVOID)pData, len, NULL, &nFonts);
+    HANDLE hFont = pAddFontMemResourceEx((PVOID)pData, len, nullptr, &nFonts);
     if (hFont && nFonts > 0) {
         m_fonts.AddTail(hFont);
     }

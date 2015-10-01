@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2012 see Authors.txt
+ * (C) 2006-2015 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -21,16 +21,57 @@
 
 #pragma once
 
+#include <memory>
 #include "STS.h"
 #include "Rasterizer.h"
 #include "../SubPic/SubPicProviderImpl.h"
+#include "RenderingCache.h"
+
+struct CTextDims;
+struct CPolygonPath {
+    CAtlArray<BYTE> typesOrg;
+    CAtlArray<CPoint> pointsOrg;
+    CSize size;
+};
+typedef std::shared_ptr<CPolygonPath> CPolygonPathSharedPtr;
+struct SSATag;
+typedef std::shared_ptr<CAtlList<SSATag>> SSATagsList;
+
+typedef CRenderingCache<CTextDimsKey, CTextDims, CKeyTraits<CTextDimsKey>> CTextDimsCache;
+typedef CRenderingCache<CPolygonPathKey, CPolygonPathSharedPtr, CKeyTraits<CPolygonPathKey>> CPolygonCache;
+typedef CRenderingCache<CStringW, SSATagsList, CStringElementTraits<CStringW>> CSSATagsCache;
+typedef CRenderingCache<CEllipseKey, CEllipseSharedPtr, CKeyTraits<CEllipseKey>> CEllipseCache;
+typedef CRenderingCache<COutlineKey, COutlineDataSharedPtr, CKeyTraits<COutlineKey>> COutlineCache;
+typedef CRenderingCache<COverlayKey, COverlayDataSharedPtr, CKeyTraits<COverlayKey>> COverlayCache;
+
+struct RenderingCaches {
+    CTextDimsCache textDimsCache;
+    CPolygonCache polygonCache;
+    CSSATagsCache SSATagsCache;
+    CEllipseCache ellipseCache;
+    COutlineCache outlineCache;
+    COverlayCache overlayCache;
+
+    RenderingCaches()
+        : textDimsCache(2048)
+        , polygonCache(2048)
+        , SSATagsCache(2048)
+        , ellipseCache(64)
+        , outlineCache(128)
+        , overlayCache(128) {}
+};
 
 class CMyFont : public CFont
 {
 public:
     int m_ascent, m_descent;
 
-    CMyFont(STSStyle& style);
+    CMyFont(const STSStyle& style);
+};
+
+struct CTextDims {
+    int ascent, descent;
+    int width;
 };
 
 class CPolygon;
@@ -42,11 +83,13 @@ class CWord : public Rasterizer
 
     void Transform(CPoint org);
 
-    void Transform_C(CPoint& org);
-    void Transform_SSE2(CPoint& org);
+    void Transform_C(const CPoint& org);
+    void Transform_SSE2(const CPoint& org);
     bool CreateOpaqueBox();
 
 protected:
+    RenderingCaches& m_renderingCaches;
+
     double m_scalex, m_scaley;
     CStringW m_str;
 
@@ -63,13 +106,17 @@ public:
 
     int m_width, m_ascent, m_descent;
 
-    CWord(STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley); // str[0] = 0 -> m_fLineBreak = true (in this case we only need and use the height of m_font from the whole class)
+    // str[0] = 0 -> m_fLineBreak = true (in this case we only need and use the height of m_font from the whole class)
+    CWord(const STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley,
+          RenderingCaches& renderingCaches);
     virtual ~CWord();
 
     virtual CWord* Copy() = 0;
     virtual bool Append(CWord* w);
 
-    void Paint(CPoint p, CPoint org);
+    void Paint(const CPoint& p, const CPoint& org);
+
+    friend class COutlineKey;
 };
 
 class CText : public CWord
@@ -78,7 +125,8 @@ protected:
     virtual bool CreatePath();
 
 public:
-    CText(STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley);
+    CText(const STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley,
+          RenderingCaches& renderingCaches);
 
     virtual CWord* Copy();
     virtual bool Append(CWord* w);
@@ -86,20 +134,19 @@ public:
 
 class CPolygon : public CWord
 {
-    bool GetLONG(CStringW& str, LONG& ret);
-    bool GetPOINT(CStringW& str, POINT& ret);
+    bool GetPOINT(LPCWSTR& str, POINT& point) const;
     bool ParseStr();
 
 protected:
     int m_baseline;
 
-    CAtlArray<BYTE> m_pathTypesOrg;
-    CAtlArray<CPoint> m_pathPointsOrg;
+    CPolygonPathSharedPtr m_pPolygonPath;
 
     virtual bool CreatePath();
 
 public:
-    CPolygon(STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley, int baseline);
+    CPolygon(const STSStyle& style, CStringW str, int ktype, int kstart, int kend, double scalex, double scaley, int baseline,
+             RenderingCaches& renderingCaches);
     CPolygon(CPolygon&); // can't use a const reference because we need to use CAtlArray::Copy which expects a non-const reference
     virtual ~CPolygon();
 
@@ -114,12 +161,13 @@ private:
     virtual bool Append(CWord* w);
 
 public:
-    CClipper(CStringW str, CSize size, double scalex, double scaley, bool inverse, CPoint cpOffset);
+    CClipper(CStringW str, const CSize& size, double scalex, double scaley, bool inverse, const CPoint& cpOffset,
+             RenderingCaches& renderingCaches);
     virtual ~CClipper();
 
-    CSize m_size;
-    bool m_inverse;
-    CPoint m_cpOffset;
+    const CSize m_size;
+    const bool m_inverse;
+    const CPoint m_cpOffset;
     BYTE* m_pAlphaMask;
 };
 
@@ -135,6 +183,89 @@ public:
     CRect PaintShadow(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPoint p, CPoint org, int time, int alpha);
     CRect PaintOutline(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPoint p, CPoint org, int time, int alpha);
     CRect PaintBody(SubPicDesc& spd, CRect& clipRect, BYTE* pAlphaMask, CPoint p, CPoint org, int time, int alpha);
+};
+
+enum SSATagCmd {
+    // /!\ Keep those four grouped together in that order
+    SSA_1c,
+    SSA_2c,
+    SSA_3c,
+    SSA_4c,
+    // /!\ Keep those four grouped together in that order
+    SSA_1a,
+    SSA_2a,
+    SSA_3a,
+    SSA_4a,
+    SSA_alpha,
+    SSA_an,
+    SSA_a,
+    SSA_blur,
+    SSA_bord,
+    SSA_be,
+    SSA_b,
+    SSA_clip,
+    SSA_c,
+    SSA_fade,
+    SSA_fe,
+    SSA_fn,
+    SSA_frx,
+    SSA_fry,
+    SSA_frz,
+    SSA_fax,
+    SSA_fay,
+    SSA_fr,
+    SSA_fscx,
+    SSA_fscy,
+    SSA_fsc,
+    SSA_fsp,
+    SSA_fs,
+    SSA_iclip,
+    SSA_i,
+    SSA_kt,
+    SSA_kf,
+    SSA_ko,
+    SSA_k,
+    SSA_K,
+    SSA_move,
+    SSA_org,
+    SSA_pbo,
+    SSA_pos,
+    SSA_p,
+    SSA_q,
+    SSA_r,
+    SSA_shad,
+    SSA_s,
+    SSA_t,
+    SSA_u,
+    SSA_xbord,
+    SSA_xshad,
+    SSA_ybord,
+    SSA_yshad,
+    SSA_unknown
+};
+
+#define SSA_CMD_MIN_LENGTH 1
+#define SSA_CMD_MAX_LENGTH 5
+
+struct SSATag {
+    SSATagCmd cmd;
+    CAtlArray<CStringW, CStringElementTraits<CStringW>> params;
+    CAtlArray<int> paramsInt;
+    CAtlArray<double> paramsReal;
+    SSATagsList subTagsList;
+
+    SSATag() : cmd(SSA_unknown) {};
+
+    SSATag(const SSATag& tag)
+        : cmd(tag.cmd)
+        , params()
+        , paramsInt()
+        , paramsReal()
+        , subTagsList(tag.subTagsList) {
+        params.Copy(tag.params);
+        paramsInt.Copy(tag.paramsInt);
+        paramsReal.Copy(tag.paramsReal);
+    }
 };
 
 enum eftype {
@@ -157,6 +288,8 @@ public:
 
 class CSubtitle : public CAtlList<CLine*>
 {
+    RenderingCaches& m_renderingCaches;
+
     int GetFullWidth();
     int GetFullLineWidth(POSITION pos);
     int GetWrapWidth(POSITION pos, int maxwidth);
@@ -166,7 +299,8 @@ public:
     int m_scrAlignment;
     int m_wrapStyle;
     bool m_fAnimated;
-    int m_relativeTo;
+    bool m_bIsAnimated;
+    STSStyle::RelativeTo m_relativeTo;
 
     Effect* m_effects[EF_NUMBEROFEFFECTS];
 
@@ -181,22 +315,22 @@ public:
     double m_scalex, m_scaley;
 
 public:
-    CSubtitle();
+    CSubtitle(RenderingCaches& renderingCaches);
     virtual ~CSubtitle();
     virtual void Empty();
     void EmptyEffects();
 
     void CreateClippers(CSize size);
 
-    void MakeLines(CSize size, CRect marginRect);
+    void MakeLines(CSize size, const CRect& marginRect);
 };
 
 class CScreenLayoutAllocator
 {
-    typedef struct {
+    struct SubRect {
         CRect r;
         int segment, entry, layer;
-    } SubRect;
+    };
 
     CAtlList<SubRect> m_subrects;
 
@@ -205,13 +339,16 @@ public:
     void Empty();
 
     void AdvanceToSegment(int segment, const CAtlArray<int>& sa);
-    CRect AllocRect(CSubtitle* s, int segment, int entry, int layer, int collisions);
+    CRect AllocRect(const CSubtitle* s, int segment, int entry, int layer, int collisions);
 };
 
 class __declspec(uuid("537DCACA-2812-4a4f-B2C6-1A34C17ADEB0"))
     CRenderedTextSubtitle : public CSimpleTextSubtitle, public CSubPicProviderImpl, public ISubStream
 {
+    static CAtlMap<CStringW, SSATagCmd, CStringElementTraits<CStringW>> s_SSATagCmds;
     CAtlMap<int, CSubtitle*> m_subtitleCache;
+
+    RenderingCaches m_renderingCaches;
 
     CScreenLayoutAllocator m_sla;
 
@@ -225,14 +362,17 @@ class __declspec(uuid("537DCACA-2812-4a4f-B2C6-1A34C17ADEB0"))
     int m_ktype, m_kstart, m_kend;
     int m_nPolygon;
     int m_polygonBaselineOffset;
-    STSStyle* m_pStyleOverride; // the app can decide to use this style instead of a built-in one
-    bool m_doOverrideStyle;
+    STSStyle m_styleOverride; // the app can decide to use this style instead of a built-in one
+    bool m_bOverrideStyle;
+    bool m_bOverridePlacement;
+    CSize m_overridePlacement;
 
     void ParseEffect(CSubtitle* sub, CString str);
     void ParseString(CSubtitle* sub, CStringW str, STSStyle& style);
     void ParsePolygon(CSubtitle* sub, CStringW str, STSStyle& style);
-    bool ParseSSATag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org, bool fAnimate = false);
-    bool ParseHtmlTag(CSubtitle* sub, CStringW str, STSStyle& style, STSStyle& org);
+    bool ParseSSATag(SSATagsList& tagsList, const CStringW& str);
+    bool CreateSubFromSSATag(CSubtitle* sub, const SSATagsList& tagsList, STSStyle& style, STSStyle& org, bool fAnimate = false);
+    bool ParseHtmlTag(CSubtitle* sub, CStringW str, STSStyle& style, const STSStyle& org);
 
     double CalcAnimation(double dst, double src, bool fAnimate);
 
@@ -242,22 +382,25 @@ protected:
     virtual void OnChanged();
 
 public:
-    CRenderedTextSubtitle(CCritSec* pLock, STSStyle* styleOverride = NULL, bool doOverride = false);
+    CRenderedTextSubtitle(CCritSec* pLock);
     virtual ~CRenderedTextSubtitle();
 
     virtual void Copy(CSimpleTextSubtitle& sts);
     virtual void Empty();
 
     // call to signal this RTS to ignore any of the styles and apply the given override style
-    void SetOverride(bool doOverride = true, STSStyle* styleOverride = NULL) {
-        m_doOverrideStyle = doOverride;
-        if (styleOverride != NULL) {
-            m_pStyleOverride = styleOverride;
-        }
+    void SetOverride(bool bOverride, const STSStyle& styleOverride) {
+        m_bOverrideStyle = bOverride;
+        m_styleOverride = styleOverride;
+    }
+
+    void SetAlignment(bool bOverridePlacement, LONG lHorPos, LONG lVerPos) {
+        m_bOverridePlacement = bOverridePlacement;
+        m_overridePlacement.SetSize(lHorPos, lVerPos);
     }
 
 public:
-    bool Init(CSize size, CRect vidrect); // will call Deinit()
+    bool Init(CSize size, const CRect& vidrect); // will call Deinit()
     void Deinit();
 
     DECLARE_IUNKNOWN
@@ -280,4 +423,5 @@ public:
     STDMETHODIMP_(int) GetStream();
     STDMETHODIMP SetStream(int iStream);
     STDMETHODIMP Reload();
+    STDMETHODIMP SetSourceTargetInfo(CString yuvMatrix, int targetBlackLevel, int targetWhiteLevel);
 };

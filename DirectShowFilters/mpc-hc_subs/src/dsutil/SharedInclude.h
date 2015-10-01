@@ -22,13 +22,8 @@
 
 #pragma warning(disable:4995)
 
-#ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN // Exclude rarely-used stuff from Windows headers
-#endif
-
-#ifndef VC_EXTRALEAN
 #define VC_EXTRALEAN        // Exclude rarely-used stuff from Windows headers
-#endif
 
 #ifdef _DEBUG
 #define _CRTDBG_MAP_ALLOC   // include Microsoft memory leak detection procedures

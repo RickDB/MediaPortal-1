@@ -16,7 +16,7 @@ private:
 	CAtlArray<int> m_delayVal; 
 
 	enum {NONE = 0, VOBSUB, TEXTSUB};
-	int m_mode;
+  Subtitle::SubType m_mode;
 
 	CSimpleTextSubtitle m_sts;
 

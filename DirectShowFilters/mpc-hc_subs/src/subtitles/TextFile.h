@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2012 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -21,22 +21,26 @@
 
 #pragma once
 
-#include <afx.h>
+#include "StdioFile64.h"
 
-class CTextFile : protected CStdioFile
+class CTextFile : protected CStdioFile64
 {
 public:
-    typedef enum {
+    enum enc {
         DEFAULT_ENCODING,
         UTF8,
         LE16,
         BE16,
         ANSI
-    } enc;
+    };
 
 private:
     enc m_encoding, m_defaultencoding;
     int m_offset;
+    ULONGLONG m_posInFile;
+    CAutoVectorPtr<char> m_buffer;
+    CAutoVectorPtr<WCHAR> m_wbuffer;
+    LONGLONG m_posInBuffer, m_nInBuffer;
 
 public:
     CTextFile(enc e = DEFAULT_ENCODING);
@@ -65,6 +69,8 @@ public:
 
 protected:
     virtual bool ReopenAsText();
+    bool FillBuffer();
+    ULONGLONG GetPositionFastBuffered() const;
 };
 
 class CWebTextFile : public CTextFile

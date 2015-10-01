@@ -54,7 +54,9 @@ protected:
     HPALETTE m_hPalette;            // Handle to any palette we may have
     BYTE m_bNoRealize;              // Don't realize palette now
     BYTE m_bBackground;             // Should we realise in background
+#ifdef _DEBUG
     BYTE m_bRealizing;              // already realizing the palette
+#endif
     CCritSec m_WindowLock;          // Serialise window object access
     BOOL m_bDoGetDC;                // Should this window get a DC
     bool m_bDoPostToDestroy;        // Use PostMessage to destroy
@@ -74,7 +76,7 @@ public:
 
     CBaseWindow(BOOL bDoGetDC = TRUE, bool bPostToDestroy = false);
 
-#ifdef DEBUG
+#ifdef _DEBUG
     virtual ~CBaseWindow();
 #endif
 
@@ -121,13 +123,13 @@ public:
     HDC GetMemoryHDC();
     HDC GetWindowHDC();
 
-    #ifdef DEBUG
+    #ifdef _DEBUG
     HPALETTE GetPalette();
     #endif // DEBUG
 
     // This is the window procedure the derived object should override
 
-    virtual LRESULT OnReceiveMessage(HWND hwnd,          // Window handle
+    virtual INT_PTR OnReceiveMessage(HWND hwnd,          // Window handle
                                      UINT uMsg,          // Message ID
                                      WPARAM wParam,      // First parameter
                                      LPARAM lParam);     // Other parameter
@@ -299,7 +301,7 @@ public:
     // Constructor and destructor
 
     CImageAllocator(__inout CBaseFilter *pFilter,__in_opt LPCTSTR pName,__inout HRESULT *phr);
-#ifdef DEBUG
+#ifdef _DEBUG
     ~CImageAllocator();
 #endif
 
@@ -339,7 +341,7 @@ public:
                   __inout CBaseWindow *pBaseWindow,
                   __inout CDrawImage *pDrawImage);
 
-#ifdef DEBUG
+#ifdef _DEBUG
     virtual ~CImagePalette();
 #endif
 

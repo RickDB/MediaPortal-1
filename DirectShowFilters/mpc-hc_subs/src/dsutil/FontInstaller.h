@@ -26,8 +26,8 @@
 class CFontInstaller
 {
     HANDLE(WINAPI* pAddFontMemResourceEx)(PVOID, DWORD, PVOID, DWORD*);
-    BOOL (WINAPI* pRemoveFontMemResourceEx)(HANDLE);
     int (WINAPI* pAddFontResourceEx)(LPCTSTR, DWORD, PVOID);
+    BOOL (WINAPI* pRemoveFontMemResourceEx)(HANDLE);
     BOOL (WINAPI* pRemoveFontResourceEx)(LPCTSTR, DWORD, PVOID);
     BOOL (WINAPI* pMoveFileEx)(LPCTSTR, LPCTSTR, DWORD);
 

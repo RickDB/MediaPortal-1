@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2013 see Authors.txt
+ * (C) 2006-2015 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -34,14 +34,26 @@ struct SubPicDesc {
     BYTE* bitsV;
     RECT vidrect; // video rectangle
 
-    struct SubPicDesc() {
-        type = 0;
-        w = h = bpp = pitch = pitchUV = 0;
-        bits = NULL;
-        bitsU = bitsV = NULL;
+    struct SubPicDesc()
+        : type(0)
+        , w(0)
+        , h(0)
+        , bpp(0)
+        , pitch(0)
+        , pitchUV(0)
+        , bits(nullptr)
+        , bitsU(nullptr)
+        , bitsV(nullptr) {
+        ZeroMemory(&vidrect, sizeof(vidrect));
     }
 };
 #pragma pack(pop)
+
+enum RelativeTo {
+    WINDOW,
+    VIDEO,
+    BEST_FIT
+};
 
 //
 // ISubPic
@@ -50,10 +62,12 @@ struct SubPicDesc {
 interface __declspec(uuid("449E11F3-52D1-4a27-AA61-E2733AC92CC0"))
 ISubPic :
 public IUnknown {
+    static const REFERENCE_TIME INVALID_TIME = -1;
+
     STDMETHOD_(void*, GetObject)() PURE;
 
-    STDMETHOD_(REFERENCE_TIME, GetStart)() PURE;
-    STDMETHOD_(REFERENCE_TIME, GetStop)() PURE;
+    STDMETHOD_(REFERENCE_TIME, GetStart)() const PURE;
+    STDMETHOD_(REFERENCE_TIME, GetStop)() const PURE;
     STDMETHOD_(void, SetStart)(REFERENCE_TIME rtStart) PURE;
     STDMETHOD_(void, SetStop)(REFERENCE_TIME rtStop) PURE;
 
@@ -61,23 +75,28 @@ public IUnknown {
     STDMETHOD(CopyTo)(ISubPic* pSubPic /*[in]*/) PURE;
 
     STDMETHOD(ClearDirtyRect)(DWORD color /*[in]*/) PURE;
-    STDMETHOD(GetDirtyRect)(RECT* pDirtyRect /*[out]*/) PURE;
-    STDMETHOD(SetDirtyRect)(RECT* pDirtyRect /*[in]*/) PURE;
+    STDMETHOD(GetDirtyRect)(RECT* pDirtyRect /*[out]*/) const PURE;
+    STDMETHOD(SetDirtyRect)(const RECT* pDirtyRect /*[in]*/) PURE;
 
-    STDMETHOD(GetMaxSize)(SIZE* pMaxSize /*[out]*/) PURE;
+    STDMETHOD(GetMaxSize)(SIZE* pMaxSize /*[out]*/) const PURE;
     STDMETHOD(SetSize)(SIZE pSize /*[in]*/, RECT vidrect /*[in]*/) PURE;
 
     STDMETHOD(Lock)(SubPicDesc& spd /*[out]*/) PURE;
     STDMETHOD(Unlock)(RECT* pDirtyRect /*[in]*/) PURE;
 
-    STDMETHOD(AlphaBlt)(RECT * pSrc, RECT * pDst, SubPicDesc* pTarget = NULL /*[in]*/) PURE;
-    STDMETHOD(GetSourceAndDest)(SIZE* pSize /*[in]*/, RECT* pRcSource /*[out]*/, RECT* pRcDest /*[out]*/) PURE;
+    STDMETHOD(AlphaBlt)(RECT * pSrc, RECT * pDst, SubPicDesc* pTarget = nullptr /*[in]*/) PURE;
+    STDMETHOD(GetSourceAndDest)(RECT rcWindow /*[in]*/, RECT rcVideo /*[in]*/, RECT* pRcSource /*[out]*/, RECT* pRcDest /*[out]*/) const PURE;
     STDMETHOD(SetVirtualTextureSize)(const SIZE pSize, const POINT pTopLeft) PURE;
+    STDMETHOD(GetRelativeTo)(RelativeTo* pRelativeTo /*[out]*/) const PURE;
+    STDMETHOD(SetRelativeTo)(RelativeTo relativeTo /*[in]*/) PURE;
 
-    STDMETHOD_(REFERENCE_TIME, GetSegmentStart)() PURE;
-    STDMETHOD_(REFERENCE_TIME, GetSegmentStop)() PURE;
+    STDMETHOD_(REFERENCE_TIME, GetSegmentStart)() const PURE;
+    STDMETHOD_(REFERENCE_TIME, GetSegmentStop)() const PURE;
     STDMETHOD_(void, SetSegmentStart)(REFERENCE_TIME rtStart) PURE;
     STDMETHOD_(void, SetSegmentStop)(REFERENCE_TIME rtStop) PURE;
+
+    STDMETHOD_(bool, GetInverseAlpha)() const PURE;
+    STDMETHOD_(void, SetInverseAlpha)(bool bInverted) PURE;
 };
 
 //
@@ -93,10 +112,12 @@ public IUnknown {
     STDMETHOD(GetStatic)(ISubPic** ppSubPic /*[out]*/) PURE;
     STDMETHOD(AllocDynamic)(ISubPic** ppSubPic /*[out]*/) PURE;
 
-    STDMETHOD_(bool, IsDynamicWriteOnly)() PURE;
+    STDMETHOD_(bool, IsDynamicWriteOnly)() const PURE;
 
     STDMETHOD(ChangeDevice)(IUnknown * pDev) PURE;
-    STDMETHOD(SetMaxTextureSize)(SIZE MaxTextureSize) PURE;
+    STDMETHOD(SetMaxTextureSize)(SIZE maxTextureSize) PURE;
+
+    STDMETHOD(FreeStatic)() PURE;
 };
 
 //
@@ -106,6 +127,8 @@ public IUnknown {
 interface __declspec(uuid("D62B9A1A-879A-42db-AB04-88AA8F243CFD"))
 ISubPicProvider :
 public IUnknown {
+    static const REFERENCE_TIME UNKNOWN_TIME = _I64_MAX;
+
     STDMETHOD(Lock)() PURE;
     STDMETHOD(Unlock)() PURE;
 
@@ -119,6 +142,7 @@ public IUnknown {
 
     STDMETHOD(Render)(SubPicDesc & spd, REFERENCE_TIME rt, double fps, RECT & bbox) PURE;
     STDMETHOD(GetTextureSize)(POSITION pos, SIZE & MaxTextureSize, SIZE & VirtualSize, POINT & VirtualTopLeft) PURE;
+    STDMETHOD(GetRelativeTo)(POSITION pos, RelativeTo & relativeTo) PURE;
 };
 
 //
@@ -137,8 +161,10 @@ public IUnknown {
     STDMETHOD(Invalidate)(REFERENCE_TIME rtInvalidate = -1) PURE;
     STDMETHOD_(bool, LookupSubPic)(REFERENCE_TIME rtNow /*[in]*/, CComPtr<ISubPic>& pSubPic /*[out]*/) PURE;
 
-    STDMETHOD(GetStats)(int & nSubPics, REFERENCE_TIME & rtNow, REFERENCE_TIME & rtStart, REFERENCE_TIME& rtStop /*[out]*/) PURE;
+    STDMETHOD(GetStats)(int& nSubPics, REFERENCE_TIME & rtNow, REFERENCE_TIME & rtStart, REFERENCE_TIME& rtStop /*[out]*/) PURE;
     STDMETHOD(GetStats)(int nSubPic /*[in]*/, REFERENCE_TIME & rtStart, REFERENCE_TIME& rtStop /*[out]*/) PURE;
+
+    STDMETHOD_(bool, LookupSubPic)(REFERENCE_TIME rtNow /*[in]*/, bool bAdviseBlocking, CComPtr<ISubPic>& pSubPic /*[out]*/) PURE;
 };
 
 //
@@ -150,21 +176,21 @@ ISubPicAllocatorPresenter :
 public IUnknown {
     STDMETHOD(CreateRenderer)(IUnknown** ppRenderer) PURE;
 
-    STDMETHOD_(SIZE, GetVideoSize)(bool fCorrectAR = true) PURE;
+    STDMETHOD_(SIZE, GetVideoSize)(bool bCorrectAR = true) const PURE;
     STDMETHOD_(void, SetPosition)(RECT w, RECT v) PURE;
-    STDMETHOD_(bool, Paint)(bool fAll) PURE;
+    STDMETHOD_(bool, Paint)(bool bAll) PURE;
 
     STDMETHOD_(void, SetTime)(REFERENCE_TIME rtNow) PURE;
-    STDMETHOD_(void, SetSubtitleDelay)(int delay_ms) PURE;
-    STDMETHOD_(int, GetSubtitleDelay)() PURE;
-    STDMETHOD_(double, GetFPS)() PURE;
+    STDMETHOD_(void, SetSubtitleDelay)(int delayMs) PURE;
+    STDMETHOD_(int, GetSubtitleDelay)() const PURE;
+    STDMETHOD_(double, GetFPS)() const PURE;
 
     STDMETHOD_(void, SetSubPicProvider)(ISubPicProvider * pSubPicProvider) PURE;
     STDMETHOD_(void, Invalidate)(REFERENCE_TIME rtInvalidate = -1) PURE;
 
     STDMETHOD(GetDIB)(BYTE * lpDib, DWORD * size) PURE;
 
-    STDMETHOD(SetVideoAngle)(Vector v, bool fRepaint = true) PURE;
+    STDMETHOD(SetVideoAngle)(Vector v) PURE;
     STDMETHOD(SetPixelShader)(LPCSTR pSrcData, LPCSTR pTarget) PURE;
 
     STDMETHOD_(bool, ResetDevice)() PURE;
@@ -175,7 +201,10 @@ interface __declspec(uuid("767AEBA8-A084-488a-89C8-F6B74E53A90F"))
 ISubPicAllocatorPresenter2 :
 public ISubPicAllocatorPresenter {
     STDMETHOD(SetPixelShader2)(LPCSTR pSrcData, LPCSTR pTarget, bool bScreenSpace) PURE;
-    STDMETHOD_(SIZE, GetVisibleVideoSize)() PURE;
+    STDMETHOD_(SIZE, GetVisibleVideoSize)() const PURE;
+
+    STDMETHOD_(bool, IsRendering)() PURE;
+    STDMETHOD(SetIsRendering)(bool bIsRendering) PURE;
 };
 
 //
@@ -190,6 +219,7 @@ public IPersist {
     STDMETHOD_(int, GetStream)() PURE;
     STDMETHOD(SetStream)(int iStream) PURE;
     STDMETHOD(Reload)() PURE;
+    STDMETHOD(SetSourceTargetInfo)(CString yuvMatrix, int targetBlackLevel, int targetWhiteLevel) PURE;
 
     // TODO: get rid of IPersist to identify type and use only
     // interface functions to modify the settings of the substream

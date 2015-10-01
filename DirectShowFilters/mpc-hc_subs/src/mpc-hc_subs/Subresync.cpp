@@ -4,6 +4,7 @@
 #include "..\subtitles\RTS.h"
 
 #include "Subresync.h"
+#include "../subtitles/GFN.h"
 
 CSubresync::CSubresync(void)
 {
@@ -27,7 +28,7 @@ void CSubresync::RemoveAll()
 
 void CSubresync::SetSubtitle(ISubStream* pSubStream, double fps)
 {
-	m_mode = NONE;
+	//m_mode = NONE;
 	m_sts.Empty();
 
 	if(!pSubStream) return;
@@ -39,27 +40,29 @@ void CSubresync::SetSubtitle(ISubStream* pSubStream, double fps)
 	{
 		CVobSubFile* pVSF = (CVobSubFile*)(ISubStream*)pSubStream;
 
-		m_mode = VOBSUB;
+    m_mode = Subtitle::SUB;
+		//m_mode = VOBSUB;
 
-		ASSERT(pVSF->m_iLang >= 0);
-		CAtlArray<CVobSubFile::SubPos>& sp = pVSF->m_langs[pVSF->m_iLang].subpos;
+    ASSERT(pVSF->m_nLang >= 0);
+		CAtlArray<CVobSubFile::SubPos>& sp = pVSF->m_langs[pVSF->m_nLang].subpos;
 
 		for(int i = 0, j = sp.GetCount(); i < j; i++)
 		{
 			CString str;
-			str.Format(_T("%d,%d,%d,%d"), sp[i].vobid, sp[i].cellid, sp[i].fForced, i);
+			str.Format(_T("%d,%d,%d,%d"), sp[i].vobid, sp[i].cellid, sp[i].bForced, i);
 			m_sts.Add(TToW(str), false, (int)sp[i].start, (int)sp[i].stop);
 		}
 
 		m_sts.CreateDefaultStyle(DEFAULT_CHARSET);
 
-		pVSF->m_fOnlyShowForcedSubs = false;
+		pVSF->m_bOnlyShowForcedSubs = false;
 	}
 	else if(clsid == __uuidof(CRenderedTextSubtitle))
 	{
 		CRenderedTextSubtitle* pRTS = (CRenderedTextSubtitle*)(ISubStream*)pSubStream;
 
-		m_mode = TEXTSUB;
+    m_mode = Subtitle::TXT;
+		//m_mode = TEXTSUB;
 
 		m_sts.Copy(*pRTS);
 		m_sts.ConvertToTimeBased(fps);
@@ -124,8 +127,9 @@ bool CSubresync::SaveToDisk(ISubStream* pSubStream, double fps, const CString & 
 		m_sts.m_path = (k < 0 ? movieName : movieName.Left(k));
 		if (!m_sts.m_name.IsEmpty())
 			m_sts.m_path += L"." + m_sts.m_name;
-		m_sts.m_exttype = (m_mode == VOBSUB ? EXTIDX : EXTSRT);
-	}
-	return m_sts.SaveAs(m_sts.m_path, m_sts.m_exttype);
+    m_sts.m_subtitleType == (m_mode == VOBSUB ? EXTIDX : EXTSRT);
+    //m_sts.m_exttype = (m_mode == VOBSUB ? EXTIDX : EXTSRT);
+  }
+  return m_sts.SaveAs(m_sts.m_path, m_sts.m_subtitleType);
 }
 

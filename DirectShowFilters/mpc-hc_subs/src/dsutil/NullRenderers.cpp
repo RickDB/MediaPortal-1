@@ -52,10 +52,10 @@ public:
                 m_pD3DDeviceManager->CloseDeviceHandle(m_hDevice);
                 m_hDevice = INVALID_HANDLE_VALUE;
             }
-            m_pD3DDeviceManager = NULL;
+            m_pD3DDeviceManager = nullptr;
         }
         if (m_pD3DDev) {
-            m_pD3DDev = NULL;
+            m_pD3DDev = nullptr;
         }
         if (m_hDXVA2Lib) {
             FreeLibrary(m_hDXVA2Lib);
@@ -72,7 +72,7 @@ public:
 
     STDMETHODIMP GetAllocatorRequirements(ALLOCATOR_PROPERTIES* pProps) {
         // 1 buffer required
-        memset(pProps, 0, sizeof(ALLOCATOR_PROPERTIES));
+        ZeroMemory(pProps, sizeof(ALLOCATOR_PROPERTIES));
         pProps->cbBuffer = 1;
         return S_OK;
     }
@@ -114,7 +114,7 @@ private:
     CComPtr<IDirect3D9> m_pD3D;
     CComPtr<IDirect3DDevice9> m_pD3DDev;
     CComPtr<IDirect3DDeviceManager9> m_pD3DDeviceManager;
-    UINT m_nResetTocken;
+    UINT m_nResetToken;
     HANDLE m_hDevice;
     HWND m_hWnd;
 
@@ -123,9 +123,12 @@ private:
 
 CNullVideoRendererInputPin::CNullVideoRendererInputPin(CBaseRenderer* pRenderer, HRESULT* phr, LPCWSTR Name)
     : CRendererInputPin(pRenderer, phr, Name)
-    , m_hDXVA2Lib(NULL)
-    , m_pD3DDev(NULL)
-    , m_pD3DDeviceManager(NULL)
+    , m_hDXVA2Lib(nullptr)
+    , pfDXVA2CreateDirect3DDeviceManager9(nullptr)
+    , pfDXVA2CreateVideoService(nullptr)
+    , m_pD3DDev(nullptr)
+    , m_pD3DDeviceManager(nullptr)
+    , m_nResetToken(0)
     , m_hDevice(INVALID_HANDLE_VALUE)
 {
     CreateSurface();
@@ -134,12 +137,12 @@ CNullVideoRendererInputPin::CNullVideoRendererInputPin(CBaseRenderer* pRenderer,
     if (m_hDXVA2Lib) {
         pfDXVA2CreateDirect3DDeviceManager9 = reinterpret_cast<PTR_DXVA2CreateDirect3DDeviceManager9>(GetProcAddress(m_hDXVA2Lib, "DXVA2CreateDirect3DDeviceManager9"));
         pfDXVA2CreateVideoService = reinterpret_cast<PTR_DXVA2CreateVideoService>(GetProcAddress(m_hDXVA2Lib, "DXVA2CreateVideoService"));
-        pfDXVA2CreateDirect3DDeviceManager9(&m_nResetTocken, &m_pD3DDeviceManager);
+        pfDXVA2CreateDirect3DDeviceManager9(&m_nResetToken, &m_pD3DDeviceManager);
     }
 
     // Initialize Device Manager with DX surface
     if (m_pD3DDev) {
-        m_pD3DDeviceManager->ResetDevice(m_pD3DDev, m_nResetTocken);
+        m_pD3DDeviceManager->ResetDevice(m_pD3DDev, m_nResetToken);
         m_pD3DDeviceManager->OpenDeviceHandle(&m_hDevice);
     }
 }
@@ -151,7 +154,7 @@ void CNullVideoRendererInputPin::CreateSurface()
         m_pD3D.Attach(Direct3DCreate9(D3D9b_SDK_VERSION));
     }
 
-    m_hWnd = NULL;  // TODO : put true window
+    m_hWnd = nullptr;  // TODO : put true window
 
     D3DDISPLAYMODE d3ddm;
     ZeroMemory(&d3ddm, sizeof(d3ddm));
@@ -169,10 +172,10 @@ void CNullVideoRendererInputPin::CreateSurface()
     pp.BackBufferHeight = d3ddm.Height;
     pp.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
 
-    m_pD3D->CreateDevice(
-        D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, m_hWnd,
-        D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED, //| D3DCREATE_MANAGED,
-        &pp, &m_pD3DDev);
+    VERIFY(SUCCEEDED(m_pD3D->CreateDevice(
+                         D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, m_hWnd,
+                         D3DCREATE_SOFTWARE_VERTEXPROCESSING | D3DCREATE_MULTITHREADED, //| D3DCREATE_MANAGED,
+                         &pp, &m_pD3DDev)));
 }
 
 STDMETHODIMP CNullVideoRendererInputPin::NonDelegatingQueryInterface(REFIID riid, void** ppv)
@@ -186,7 +189,7 @@ STDMETHODIMP CNullVideoRendererInputPin::NonDelegatingQueryInterface(REFIID riid
 
 STDMETHODIMP CNullVideoRendererInputPin::GetService(REFGUID guidService, REFIID riid, LPVOID* ppvObject)
 {
-    if (m_pD3DDeviceManager != NULL && guidService == MR_VIDEO_ACCELERATION_SERVICE) {
+    if (m_pD3DDeviceManager != nullptr && guidService == MR_VIDEO_ACCELERATION_SERVICE) {
         if (riid == __uuidof(IDirect3DDeviceManager9)) {
             return m_pD3DDeviceManager->QueryInterface(riid, ppvObject);
         } else if (riid == __uuidof(IDirectXVideoDecoderService) || riid == __uuidof(IDirectXVideoProcessorService)) {
@@ -226,7 +229,7 @@ STDMETHODIMP CNullVideoRendererInputPin::SetSurfaceType(DXVA2_SurfaceType dwType
 STDMETHODIMP CNullVideoRendererInputPin::GetVideoWindow(HWND* phwndVideo)
 {
     CheckPointer(phwndVideo, E_POINTER);
-    *phwndVideo = m_hWnd;   // Important to implement this method (used by mpc)
+    *phwndVideo = m_hWnd;   // Important to implement this method (used by MPC-HC)
     return S_OK;
 }
 
@@ -306,9 +309,9 @@ HRESULT CNullUVideoRenderer::DoRenderSample(IMediaSample* pSample)
 {
 #ifdef USE_DXVA
     CComQIPtr<IMFGetService> pService = pSample;
-    if (pService != NULL) {
+    if (pService != nullptr) {
         CComPtr<IDirect3DSurface9>  pSurface;
-        if (SUCCEEDED(pService->GetService(MR_BUFFER_SERVICE, __uuidof(IDirect3DSurface9), (void**)&pSurface))) {
+        if (SUCCEEDED(pService->GetService(MR_BUFFER_SERVICE, IID_PPV_ARGS(&pSurface)))) {
             // TODO : render surface...
         }
     }
@@ -361,6 +364,31 @@ HRESULT CNullUAudioRenderer::CheckMediaType(const CMediaType* pmt)
                || pmt->subtype == MEDIASUBTYPE_SPDIF_TAG_241h)
            ? S_OK
            : E_FAIL;
+}
+
+HRESULT CNullUAudioRenderer::DoRenderSample(IMediaSample* pSample)
+{
+#if _DEBUG && 0
+    static int nNb = 1;
+    if (nNb < 100) {
+        const long lSize = pSample->GetActualDataLength();
+        BYTE* pMediaBuffer = nullptr;
+        HRESULT hr = pSample->GetPointer(&pMediaBuffer);
+        char strFile[MAX_PATH];
+
+        sprintf_s(strFile, "AudioData%02d.bin", nNb++);
+        FILE* hFile = fopen(strFile, "wb");
+        if (hFile) {
+            fwrite(pMediaBuffer,
+                   1,
+                   lSize,
+                   hFile);
+            fclose(hFile);
+        }
+    }
+#endif
+
+    return S_OK;
 }
 
 //

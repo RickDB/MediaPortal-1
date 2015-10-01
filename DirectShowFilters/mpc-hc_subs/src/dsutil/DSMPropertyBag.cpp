@@ -161,8 +161,8 @@ CCritSec CDSMResource::m_csResources;
 CAtlMap<uintptr_t, CDSMResource*> CDSMResource::m_resources;
 
 CDSMResource::CDSMResource()
-    : mime(_T("application/octet-stream"))
-    , tag(0)
+    : tag(0)
+    , mime(_T("application/octet-stream"))
 {
     CAutoLock cAutoLock(&m_csResources);
     m_resources.SetAt(reinterpret_cast<uintptr_t>(this), this);
@@ -254,7 +254,7 @@ STDMETHODIMP IDSMResourceBagImpl::ResGet(DWORD iIndex, BSTR* ppName, BSTR* ppDes
     return S_OK;
 }
 
-STDMETHODIMP IDSMResourceBagImpl::ResSet(DWORD iIndex, LPCWSTR pName, LPCWSTR pDesc, LPCWSTR pMime, BYTE* pData, DWORD len, DWORD_PTR tag)
+STDMETHODIMP IDSMResourceBagImpl::ResSet(DWORD iIndex, LPCWSTR pName, LPCWSTR pDesc, LPCWSTR pMime, const BYTE* pData, DWORD len, DWORD_PTR tag)
 {
     if (iIndex >= m_resources.GetCount()) {
         return E_INVALIDARG;
@@ -301,10 +301,11 @@ STDMETHODIMP IDSMResourceBagImpl::ResRemoveAt(DWORD iIndex)
 STDMETHODIMP IDSMResourceBagImpl::ResRemoveAll(DWORD_PTR tag)
 {
     if (tag) {
-        for (ptrdiff_t i = m_resources.GetCount() - 1; i >= 0; i--)
+        for (ptrdiff_t i = m_resources.GetCount() - 1; i >= 0; i--) {
             if (m_resources[i].tag == tag) {
                 m_resources.RemoveAt(i);
             }
+        }
     } else {
         m_resources.RemoveAll();
     }
@@ -463,7 +464,7 @@ STDMETHODIMP IDSMChapterBagImpl::ChapSort()
 //
 
 CDSMChapterBag::CDSMChapterBag(LPUNKNOWN pUnk, HRESULT* phr)
-    : CUnknown(_T("CDSMChapterBag"), NULL)
+    : CUnknown(_T("CDSMChapterBag"), nullptr)
 {
 }
 

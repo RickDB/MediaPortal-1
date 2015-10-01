@@ -14,6 +14,7 @@
 #include "IPinHook.h"
 #include "ITrackInfo.h"
 #include "../DSUtil/WinAPIUtils.h"
+#include "../subtitles/GFN.h"
 
 STSStyle g_style;
 BOOL g_overrideUserStyles;
@@ -35,10 +36,12 @@ CSubManager::CSubManager(IDirect3DDevice9* d3DDev, SIZE size, HRESULT& hr)
 	m_lastSize(size)
 {
 	ATLTRACE("CSubManager constructor: texture size %dx%d, buffer ahead: %d, pow2tex: %d", g_textureSize.cx, g_textureSize.cy, g_subPicsBufferAhead, g_pow2tex);
-	m_pAllocator = new CDX9SubPicAllocator(d3DDev, g_textureSize, g_pow2tex/*AfxGetAppSettings().fSPCPow2Tex*/, false);
+	//m_pAllocator = new CDX9SubPicAllocator(d3DDev, g_textureSize, g_pow2tex/*AfxGetAppSettings().fSPCPow2Tex*/, false);
+  m_pAllocator = new CDX9SubPicAllocator(d3DDev, g_textureSize, false);
+
 	hr = S_OK;
 	if (g_subPicsBufferAhead > 0)
-		m_pSubPicQueue = new CSubPicQueue(g_subPicsBufferAhead, g_disableAnim, m_pAllocator, &hr);
+    m_pSubPicQueue = new CSubPicQueue(g_subPicsBufferAhead, g_disableAnim, m_pAllocator, &hr);
 	else
 		m_pSubPicQueue = new CSubPicQueueNoThread(m_pAllocator, &hr);
 	if (FAILED(hr))
@@ -100,7 +103,7 @@ void CSubManager::ToggleForcedOnly(bool onlyShowForcedSubs)
 	 if(clsid == __uuidof(CVobSubFile))
 	 {
 	 CVobSubFile* pVSF = (CVobSubFile*) m_pSubStream.p;
-	 pVSF->m_fOnlyShowForcedSubs = onlyShowForcedSubs;
+   pVSF->m_bOnlyShowForcedSubs = onlyShowForcedSubs;
 	 }
 	}
 }
@@ -563,7 +566,7 @@ void CSubManager::LoadExternalSubtitles(const wchar_t* filename, const wchar_t* 
 			{
 				CAutoPtr<CVobSubFile> pVSF(new CVobSubFile(&m_csSubLock));
 				if(CString(CPath(ret[i].fn).GetExtension()).MakeLower() == _T(".idx") && pVSF && pVSF->Open(ret[i].fn) && pVSF->GetStreamCount() > 0) {
-					pVSF->m_fOnlyShowForcedSubs = onlyShowForcedSubs;
+          pVSF->m_bOnlyShowForcedSubs = onlyShowForcedSubs;
 					pSubStream = pVSF.Detach();
 				}
 			}

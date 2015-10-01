@@ -1,6 +1,6 @@
 /*
  * (C) 2003-2006 Gabest
- * (C) 2006-2012 see Authors.txt
+ * (C) 2006-2014 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -20,6 +20,7 @@
  */
 
 #include "stdafx.h"
+#include <atlutil.h>
 #include "text.h"
 
 DWORD CharSetToCodePage(DWORD dwCharSet)
@@ -30,7 +31,8 @@ DWORD CharSetToCodePage(DWORD dwCharSet)
     if (dwCharSet == CP_UTF7) {
         return CP_UTF7;
     }
-    CHARSETINFO cs = {0};
+    CHARSETINFO cs;
+    ZeroMemory(&cs, sizeof(CHARSETINFO));
     ::TranslateCharsetInfo((DWORD*)dwCharSet, &cs, TCI_SRCCHARSET);
     return cs.ciACP;
 }
@@ -38,10 +40,10 @@ DWORD CharSetToCodePage(DWORD dwCharSet)
 CStringA ConvertMBCS(CStringA str, DWORD SrcCharSet, DWORD DstCharSet)
 {
     WCHAR* utf16 = DEBUG_NEW WCHAR[str.GetLength() + 1];
-    memset(utf16, 0, (str.GetLength() + 1)*sizeof(WCHAR));
+    ZeroMemory(utf16, (str.GetLength() + 1)*sizeof(WCHAR));
 
     CHAR* mbcs = DEBUG_NEW CHAR[str.GetLength() * 6 + 1];
-    memset(mbcs, 0, str.GetLength() * 6 + 1);
+    ZeroMemory(mbcs, str.GetLength() * 6 + 1);
 
     int len = MultiByteToWideChar(
                   CharSetToCodePage(SrcCharSet),
@@ -58,8 +60,8 @@ CStringA ConvertMBCS(CStringA str, DWORD SrcCharSet, DWORD DstCharSet)
               len,
               mbcs,
               str.GetLength() * 6,
-              NULL,
-              NULL);
+              nullptr,
+              nullptr);
 
     str = mbcs;
 
@@ -69,63 +71,55 @@ CStringA ConvertMBCS(CStringA str, DWORD SrcCharSet, DWORD DstCharSet)
     return str;
 }
 
-CStringA UrlEncode(CStringA str_in, bool fArg)
+CStringA UrlEncode(const CStringA& strIn)
 {
-    CStringA str_out;
-
-    for (int i = 0; i < str_in.GetLength(); i++) {
-        char c = str_in[i];
-        if (fArg && (c == '#' || c == '?' || c == '%' || c == '&' || c == '=')) {
-            str_out.AppendFormat("%%%02x", (BYTE)c);
-        } else if (c > 0x20 && c < 0x7f) {
-            str_out += c;
+    CStringA strOut;
+    DWORD dwStrLen = 0, dwMaxLength = 0;
+    // Request the buffer size needed to encode the URL
+    AtlEscapeUrl(strIn, strOut.GetBuffer(), &dwStrLen, dwMaxLength, ATL_URL_ENCODE_PERCENT);
+    dwMaxLength = dwStrLen;
+    // Encode the URL
+    if (dwMaxLength > 0) {
+        if (AtlEscapeUrl(strIn, strOut.GetBuffer(int(dwMaxLength)), &dwStrLen, dwMaxLength, ATL_URL_ENCODE_PERCENT)) {
+            dwStrLen--;
         } else {
-            str_out.AppendFormat("%%%02x", (BYTE)c);
+            dwStrLen = 0;
         }
+        strOut.ReleaseBuffer(dwStrLen);
     }
 
-    return str_out;
+    return strOut;
 }
 
-CStringA UrlDecode(CStringA str_in)
+CStringA EscapeJSONString(const CStringA& str)
 {
-    CStringA str_out;
+    CStringA escapedString = str;
+    // replace all of JSON's reserved characters with their escaped
+    // equivalents.
+    escapedString.Replace("\"", "\\\"");
+    escapedString.Replace("\\", "\\\\");
+    escapedString.Replace("/", "\\/");
+    escapedString.Replace("\b", "\\b");
+    escapedString.Replace("\f", "\\f");
+    escapedString.Replace("\n", "\\n");
+    escapedString.Replace("\r", "\\r");
+    escapedString.Replace("\t", "\\t");
+    return escapedString;
+}
 
-    for (int i = 0, len = str_in.GetLength(); i < len; i++) {
-        if (str_in[i] == '%' && i + 2 < len) {
-            bool b = true;
-            char c1 = str_in[i + 1];
-            if (c1 >= '0' && c1 <= '9') {
-                c1 -= '0';
-            } else if (c1 >= 'A' && c1 <= 'F') {
-                c1 -= 'A' - 10;
-            } else if (c1 >= 'a' && c1 <= 'f') {
-                c1 -= 'a' - 10;
-            } else {
-                b = false;
-            }
-            if (b) {
-                char c2 = str_in[i + 2];
-                if (c2 >= '0' && c2 <= '9') {
-                    c2 -= '0';
-                } else if (c2 >= 'A' && c2 <= 'F') {
-                    c2 -= 'A' - 10;
-                } else if (c2 >= 'a' && c2 <= 'f') {
-                    c2 -= 'a' - 10;
-                } else {
-                    b = false;
-                }
-                if (b) {
-                    str_out += (char)((c1 << 4) | c2);
-                    i += 2;
-                    continue;
-                }
-            }
-        }
-        str_out += str_in[i];
+CStringA UrlDecode(const CStringA& strIn)
+{
+    CStringA strOut;
+    DWORD dwStrLen = 0, dwMaxLength = strIn.GetLength() + 1;
+
+    if (AtlUnescapeUrl(strIn, strOut.GetBuffer(int(dwMaxLength)), &dwStrLen, dwMaxLength)) {
+        dwStrLen--;
+    } else {
+        dwStrLen = 0;
     }
+    strOut.ReleaseBuffer(dwStrLen);
 
-    return str_out;
+    return strOut;
 }
 
 CString ExtractTag(CString tag, CMapStringToString& attribs, bool& fClosing)
@@ -204,14 +198,14 @@ CString FormatNumber(CString szNumber, bool bNoFractionalDigits /*= true*/)
 {
     CString ret;
 
-    int nChars = GetNumberFormat(LOCALE_USER_DEFAULT, 0, szNumber, NULL, NULL, 0);
-    GetNumberFormat(LOCALE_USER_DEFAULT, 0, szNumber, NULL, ret.GetBuffer(nChars), nChars);
+    int nChars = GetNumberFormat(LOCALE_USER_DEFAULT, 0, szNumber, nullptr, nullptr, 0);
+    GetNumberFormat(LOCALE_USER_DEFAULT, 0, szNumber, nullptr, ret.GetBuffer(nChars), nChars);
     ret.ReleaseBuffer();
 
     if (bNoFractionalDigits) {
         TCHAR szNumberFractionalDigits[2] = {0};
         GetLocaleInfo(LOCALE_USER_DEFAULT, LOCALE_IDIGITS, szNumberFractionalDigits, _countof(szNumberFractionalDigits));
-        int nNumberFractionalDigits = _tcstol(szNumberFractionalDigits, NULL, 10);
+        int nNumberFractionalDigits = _tcstol(szNumberFractionalDigits, nullptr, 10);
         if (nNumberFractionalDigits) {
             ret.Truncate(ret.GetLength() - nNumberFractionalDigits - 1);
         }

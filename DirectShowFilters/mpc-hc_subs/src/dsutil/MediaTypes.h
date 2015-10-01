@@ -21,7 +21,9 @@
 
 #pragma once
 
-#pragma pack(1)
+#include <dvdmedia.h>
+
+#pragma pack(push, 1)
 struct VIH {
     VIDEOINFOHEADER vih;
     UINT mask[3];
@@ -35,7 +37,7 @@ struct VIH2 {
     int size;
     const GUID* subtype;
 };
-#pragma pack()
+#pragma pack(pop)
 
 extern VIH vihs[];
 extern VIH2 vih2s[];

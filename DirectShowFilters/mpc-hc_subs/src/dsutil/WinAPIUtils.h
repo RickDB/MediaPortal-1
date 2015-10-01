@@ -1,5 +1,5 @@
 /*
- * (C) 2011-2012 see Authors.txt
+ * (C) 2011-2014 see Authors.txt
  *
  * This file is part of MPC-HC.
  *
@@ -38,6 +38,11 @@ bool IsFontInstalled(LPCTSTR lpszFont);
 
 bool ExploreToFile(LPCTSTR path);
 
-bool FileExists(LPCTSTR fileName);
+HRESULT FileDelete(CString file, HWND hWnd, bool recycle = true);
 
-CString GetProgramPath(bool bWithExecutableName = false);
+class CoInitializeHelper
+{
+public:
+    CoInitializeHelper();
+    ~CoInitializeHelper();
+};
