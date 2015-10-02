@@ -41,9 +41,13 @@ CSubManager::CSubManager(IDirect3DDevice9* d3DDev, SIZE size, HRESULT& hr)
 
 	hr = S_OK;
 	if (g_subPicsBufferAhead > 0)
-    m_pSubPicQueue = new CSubPicQueue(g_subPicsBufferAhead, g_disableAnim, m_pAllocator, &hr);
+    //m_pSubPicQueue = new CSubPicQueue(g_subPicsBufferAhead, g_disableAnim, m_pAllocator, &hr);
+    // Hardcoded SubPicQueueSettings and needs to be changed
+	m_pSubPicQueue = new CSubPicQueueNoThread(SubPicQueueSettings(0, 0, false, 50, 100, true), m_pAllocator, &hr);
 	else
-		m_pSubPicQueue = new CSubPicQueueNoThread(m_pAllocator, &hr);
+		//m_pSubPicQueue = new CSubPicQueueNoThread(m_pAllocator, &hr);
+	// Hardcoded SubPicQueueSettings and needs to be changed
+    m_pSubPicQueue = new CSubPicQueueNoThread(SubPicQueueSettings(0, 0, false, 50, 100, true), m_pAllocator, &hr);
 	if (FAILED(hr))
 	{
 		ATLTRACE("CSubPicQueue creation error: %x", hr);
@@ -276,10 +280,16 @@ void CSubManager::Render(int x, int y, int width, int height)
 	}
 
 	CComPtr<ISubPic> pSubPic;
+
 	if(m_pSubPicQueue->LookupSubPic(m_rtNow, pSubPic)) 
 	{
  		CRect rcSource, rcDest;
-		if (SUCCEEDED (pSubPic->GetSourceAndDest(&size, rcSource, rcDest))) {
+
+    // Need to convert window and video to rectangle however some values are missing as those are not send to CSubManager::Render.
+    CRect wndRect(0, 0, width, height);
+    CRect videoRect(0, 0, width, height);
+
+    if (SUCCEEDED(pSubPic->GetSourceAndDest(wndRect, videoRect, rcSource, rcDest))) {
 			//ATLTRACE("m_rtNow %d", (long)(m_rtNow/10000000));
 			//ATLTRACE("src: (%d,%d) - (%d,%d)", rcSource.left, rcSource.top, rcSource.right, rcSource.bottom);
 			//ATLTRACE("dst: (%d,%d) - (%d,%d)\n", rcDest.left, rcDest.top, rcDest.right, rcDest.bottom);
