@@ -52,7 +52,11 @@ namespace MediaPortal.Player
 
     public VolumeHandler(int[] volumeTable)
     {
-      if (GUIGraphicsContext.DeviceAudioConnected > 0)
+      CoreAudioController _audioController = new CoreAudioController();
+      IEnumerable<CoreAudioDevice> ConnectedAudioDevices =
+        _audioController.GetDevices(DeviceType.Playback, DeviceState.Active);
+
+      if (ConnectedAudioDevices.Any())
       {
         bool isDigital;
         bool hideWindowsOSD;
