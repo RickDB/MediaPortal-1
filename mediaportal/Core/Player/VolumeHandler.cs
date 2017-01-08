@@ -43,6 +43,7 @@ namespace MediaPortal.Player
     #region Vars
 
     static HideVolumeOSD.HideVolumeOSDLib VolumeOSD;
+    static readonly CoreAudioController _audioController = new CoreAudioController();
 
     #endregion
 
@@ -52,13 +53,10 @@ namespace MediaPortal.Player
 
     public VolumeHandler(int[] volumeTable)
     {
-      CoreAudioController _audioController = new CoreAudioController();
-      IEnumerable<CoreAudioDevice> ConnectedAudioDevices =
-        _audioController.GetDevices(DeviceType.Playback, DeviceState.Active);
+      CoreAudioDevice device = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
 
-      if (ConnectedAudioDevices.Any())
+      if (device != null)
       {
-        bool isDigital;
         bool hideWindowsOSD;
 
         using (Settings reader = new MPSettings())
@@ -91,7 +89,6 @@ namespace MediaPortal.Player
           _mixer = new Mixer.Mixer();
           _mixer.Open(0, isDigital);
           _volumeTable = volumeTable;
-          _mixer.ControlChanged += mixer_ControlChanged;
         }
         catch (Exception ex)
         {
@@ -104,7 +101,7 @@ namespace MediaPortal.Player
           {
             bool tempShowVolumeOSD = _showVolumeOSD;
 
-            _showVolumeOSD = false;
+            _showVolumeOSD = true;
             
             VolumeOSD = new HideVolumeOSD.HideVolumeOSDLib(IsMuted);
             VolumeOSD.HideOSD();
@@ -118,6 +115,8 @@ namespace MediaPortal.Player
       {
         _volumeTable = volumeTable;
       }
+
+      Log.Debug("Created volume handler #2");
     }
 
     #endregion Constructors
@@ -129,10 +128,7 @@ namespace MediaPortal.Player
     /// </summary>
     public static void CreateInstance()
     {
-      if (_instance==null)
-      {
-        _instance = Create();
-      }      
+      _instance = Create();
     }
 
     /// <summary>
@@ -141,11 +137,9 @@ namespace MediaPortal.Player
     /// <returns>A newly created volume handler.</returns>
     private static VolumeHandler Create()
     {
-      CoreAudioController _audioController = new CoreAudioController();
-      IEnumerable<CoreAudioDevice> ConnectedAudioDevices =
-        _audioController.GetDevices(DeviceType.Playback, DeviceState.Active);
+      CoreAudioDevice device = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
 
-      if (ConnectedAudioDevices.Any())
+      if (device != null)
       {
         using (Settings reader = new MPSettings())
         {
@@ -199,8 +193,6 @@ namespace MediaPortal.Player
         {
           writer.SetValue("volume", "lastknown", _instance._mixer.Volume);
         }
-
-        _instance._mixer.ControlChanged -= mixer_ControlChanged;
 
         _instance._mixer.SafeDispose();
         _instance._mixer = null;
@@ -294,21 +286,27 @@ namespace MediaPortal.Player
       }
     }
 
-    private static void mixer_ControlChanged(object sender, Mixer.MixerEventArgs e)
+    public void mixer_UpdateVolume()
     {
+      Log.Error("mixer_ControlChanged start");
       Instance.HandleGUIOnControlChange();
       GUIGraphicsContext.VolumeOverlay = true;
       GUIGraphicsContext.VolumeOverlayTimeOut = DateTime.Now;
       Instance.UpdateVolumeProperties();
+      Log.Error("mixer_ControlChanged stop");
     }
 
     public void UpdateVolumeProperties()
     {
+      Log.Error("UpdateVolumeProperties start");
+
       float fRange = (float)(Instance.Maximum - Instance.Minimum);
       float fPos = (float)(Instance.Volume - Instance.Minimum);
       float fPercent = (fPos / fRange) * 100.0f;
       GUIPropertyManager.SetProperty("#volume.percent", ((int)Math.Round(fPercent)).ToString());
       GUIPropertyManager.SetProperty("#volume.mute", Instance.IsMuted.ToString().ToLowerInvariant());
+
+      Log.Error("UpdateVolumeProperties stop");
     }
 
     #endregion Methods
@@ -426,7 +424,13 @@ namespace MediaPortal.Player
     /// </summary>
     public static VolumeHandler Instance
     {
-      get { return _instance; }
+      get
+      {
+        if(_instance == null)
+          CreateInstance();
+
+        return _instance;
+      }
     }
 
     
@@ -435,7 +439,9 @@ namespace MediaPortal.Player
 
     #region Fields
 
-    private Mixer.Mixer _mixer;
+    public Mixer.Mixer _mixer;
+    public bool isDigital;
+
     private static VolumeHandler _instance;
 
     private static readonly int[] SystemTable = new[]
