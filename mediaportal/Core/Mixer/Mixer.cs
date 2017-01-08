@@ -164,7 +164,6 @@ namespace MediaPortal.Mixer
           return;
 
         _audioDefaultDevice = newAudioDevice;
-        VolumeHandler.Instance.Volume = VolumeMaximum;
         Log.Debug($"Audio device changed detected (new): {_audioDefaultDevice.FullName}");
       }
       catch (Exception ex)

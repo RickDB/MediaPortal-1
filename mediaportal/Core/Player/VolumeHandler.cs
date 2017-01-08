@@ -288,25 +288,19 @@ namespace MediaPortal.Player
 
     public void mixer_UpdateVolume()
     {
-      Log.Error("mixer_ControlChanged start");
       Instance.HandleGUIOnControlChange();
       GUIGraphicsContext.VolumeOverlay = true;
       GUIGraphicsContext.VolumeOverlayTimeOut = DateTime.Now;
       Instance.UpdateVolumeProperties();
-      Log.Error("mixer_ControlChanged stop");
     }
 
     public void UpdateVolumeProperties()
     {
-      Log.Error("UpdateVolumeProperties start");
-
       float fRange = (float)(Instance.Maximum - Instance.Minimum);
       float fPos = (float)(Instance.Volume - Instance.Minimum);
       float fPercent = (fPos / fRange) * 100.0f;
       GUIPropertyManager.SetProperty("#volume.percent", ((int)Math.Round(fPercent)).ToString());
       GUIPropertyManager.SetProperty("#volume.mute", Instance.IsMuted.ToString().ToLowerInvariant());
-
-      Log.Error("UpdateVolumeProperties stop");
     }
 
     #endregion Methods
