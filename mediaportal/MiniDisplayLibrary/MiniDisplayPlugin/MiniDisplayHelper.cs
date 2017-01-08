@@ -824,7 +824,7 @@ namespace MediaPortal.ProcessPlugins.MiniDisplayPlugin
 
       try
       {
-        MPStatus.SystemVolumeLevel = VolumeHandler.Instance.Volume;
+        MPStatus.SystemVolumeLevel = (int)VolumeHandler.Instance.Volume;
         MPStatus.IsMuted = VolumeHandler.Instance.IsMuted;
       }
       catch

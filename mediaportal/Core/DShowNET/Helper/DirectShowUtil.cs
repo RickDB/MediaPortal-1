@@ -25,6 +25,7 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.ComTypes;
 using System.Threading;
+using AudioSwitcher.AudioApi.CoreAudio;
 using DirectShowLib;
 using MediaPortal.GUI.Library;
 using MediaPortal.Player;
