@@ -19,10 +19,13 @@
 #endregion
 
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using AudioSwitcher.AudioApi;
 using AudioSwitcher.AudioApi.CoreAudio;
 using AudioSwitcher.AudioApi.Observables;
+using DirectShowLib;
+using EnterpriseDT.Util.Debug;
 using MediaPortal.ExtensionMethods;
 using MediaPortal.GUI.Library;
 using MediaPortal.Player;
@@ -35,7 +38,7 @@ namespace MediaPortal.Mixer
 
     public event MixerEventHandler LineChanged;
     public event MixerEventHandler ControlChanged;
-   
+    public int[] _volumeTable;
     #endregion Events
 
     #region Methods
@@ -117,8 +120,7 @@ namespace MediaPortal.Mixer
             _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
             if (_audioDefaultDevice != null)
             {
-              Log.Error($"Mixer audio device: {_audioDefaultDevice.FullName}");
-              Log.Error($"Mixer audio device volume: {_audioDefaultDevice.Volume}");
+              Log.Debug($"Mixer audio device: {_audioDefaultDevice.FullName}");
 
               // AudioEndpointVolume_OnVolumeNotification
               _audioDefaultDevice.VolumeChanged.Subscribe(x =>
@@ -133,7 +135,6 @@ namespace MediaPortal.Mixer
 
               _isMuted = _audioDefaultDevice.IsMuted;
               _volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
-              Log.Error($"Mixer audio device volume rounded: {_volume}");
             }
           }
           catch (Exception)
@@ -308,34 +309,81 @@ namespace MediaPortal.Mixer
     }
 
     void OnVolumeChange()
-    { 
-      _isMuted = _audioDefaultDevice.IsMuted;
-      if (_waveVolume && OSInfo.OSInfo.Win8OrLater())
+    {
+      try
       {
-        _isMutedVolume = (int) GetValue(_componentType, MixerControlType.Mute) == 1;
-      }
+        if (_audioDefaultDevice == null)
+          return;
 
-      if (ControlChanged != null)
-      {
-        ControlChanged(null, null);
-        if (_waveVolume && OSInfo.OSInfo.Win8OrLater() && (_isMutedVolume != IsMuted))
+        _isMuted = _audioDefaultDevice.IsMuted;
+        if (_waveVolume && OSInfo.OSInfo.Win8OrLater())
         {
-          SetValue(_mixerControlDetailsMute, _isMuted);
+          _isMutedVolume = (int) GetValue(_componentType, MixerControlType.Mute) == 1;
         }
+
+        // Determine which step in Mediaportal volume table we are.
+        // This is needed as external volume control will supply them in a 0-100 format
+
+        int currentVolumePercentage = (int) (_audioDefaultDevice.Volume / 100 * 100);
+
+        if (VolumeHandler.Instance._volumeTable == null)
+        {
+          VolumeHandler.CreateInstance();
+        }
+
+        _volumeTable = VolumeHandler.Instance._volumeTable;
+
+        if (_volumeTable == null)
+          return;
+        if (_volumeTable.Length == 0)
+          return;
+
+        int totalVolumeSteps = _volumeTable.Length;
+        decimal volumePercentageDecimal = (decimal)currentVolumePercentage / 100;
+        double index = Math.Floor((double)(volumePercentageDecimal * totalVolumeSteps));
+
+        // Make sure we never go out of bounds
+        if (index < 0)
+          index = 0;
+        while (index > totalVolumeSteps)
+          index--;
+
+        int volumeStep = _volumeTable[(int)index];
+        _volume = volumeStep;
+
+        if (ControlChanged != null)
+        {
+          ControlChanged(null, null);
+          if (_waveVolume && OSInfo.OSInfo.Win8OrLater() && (_isMutedVolume != IsMuted))
+          {
+            SetValue(_mixerControlDetailsMute, _isMuted);
+          }
+        }
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"Error occurred in OnVolumeChange(): {ex}");
       }
     }
 
     void OnDeviceChange()
     {
-      Log.Error($"Audio device old: {_audioDefaultDevice.FullName}");
+      try
+      {
+        Log.Debug($"Audio device changed detected (old): {_audioDefaultDevice.FullName}");
 
-      _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
+        _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
 
-      Log.Error($"Audio device new: {_audioDefaultDevice.FullName}");
+        Log.Debug($"Audio device changed detected (new): {_audioDefaultDevice.FullName}");
 
-      // Re-create volume handler instance
-      VolumeHandler.Dispose();
-      VolumeHandler.CreateInstance();
+        // Re-create volume handler instance for OSD
+        VolumeHandler.Dispose();
+        VolumeHandler.CreateInstance();
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"Error occurred in OnDeviceChange(): {ex}");
+      }
     }
 
     #endregion Methods
@@ -376,20 +424,13 @@ namespace MediaPortal.Mixer
       {
         lock (this)
         {
-          Log.Error("Current volume (device): " + _audioDefaultDevice.Volume);
-          Log.Error("Current volume (converted): " + _volume);
-
           return _volume;
         }
       }
       set
       {
-        Log.Error("Setting volume to (raw): " + value);
         _volume = value;
-
         int volumePercentage = (int)Math.Round((double)(100 * value) / VolumeMaximum);
-
-        Log.Error("Setting volume to (%): " + volumePercentage);
 
         lock (this)
         {

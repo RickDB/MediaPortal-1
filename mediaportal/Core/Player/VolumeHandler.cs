@@ -19,9 +19,12 @@
 #endregion
 
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using System.Runtime.InteropServices;
+using AudioSwitcher.AudioApi;
+using AudioSwitcher.AudioApi.CoreAudio;
 using MediaPortal.ExtensionMethods;
 using MediaPortal.GUI.Library;
 using MediaPortal.Profile;
@@ -134,7 +137,11 @@ namespace MediaPortal.Player
     /// <returns>A newly created volume handler.</returns>
     private static VolumeHandler Create()
     {
-      if (GUIGraphicsContext.DeviceAudioConnected > 0)
+      CoreAudioController _audioController = new CoreAudioController();
+      IEnumerable<CoreAudioDevice> ConnectedAudioDevices =
+        _audioController.GetDevices(DeviceType.Playback, DeviceState.Active);
+
+      if (ConnectedAudioDevices.Any())
       {
         using (Settings reader = new MPSettings())
         {
@@ -436,7 +443,7 @@ namespace MediaPortal.Player
                                                      55141, 65535
                                                    };
 
-    private int[] _volumeTable;
+    public int[] _volumeTable;
     private int _startupVolume;
     private static bool _showVolumeOSD;
 
