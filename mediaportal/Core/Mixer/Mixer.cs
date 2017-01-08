@@ -345,7 +345,7 @@ namespace MediaPortal.Mixer
         // Make sure we never go out of bounds
         if (index < 0)
           index = 0;
-        while (index > totalVolumeSteps)
+        while (index > _volumeTable.Count())
           index--;
 
         int volumeStep = _volumeTable[(int)index];
