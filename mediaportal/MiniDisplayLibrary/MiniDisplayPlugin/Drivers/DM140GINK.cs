@@ -151,7 +151,7 @@ namespace MediaPortal.ProcessPlugins.MiniDisplayPlugin.Drivers
         vfd.writeLine(line, RemoveDiacritics(message));
 
         //Volume calculation
-        int vol = (int)VolumeHandler.Instance.Volume / 2730;
+        int vol = VolumeHandler.Instance.Volume / 2730;
 
         // Display symbols
         // LiveTV, LiveRadio

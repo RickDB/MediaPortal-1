@@ -132,14 +132,14 @@ namespace MediaPortal.Mixer
 
 
               _isMuted = _audioDefaultDevice.IsMuted;
-              _volume = (int) _audioDefaultDevice.Volume;
+              _volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
               Log.Error($"Mixer audio device volume rounded: {_volume}");
             }
           }
           catch (Exception)
           {
             _isMuted = false;
-            _volume = 100;
+            _volume = VolumeMaximum;
           }
         }
 
@@ -309,16 +309,13 @@ namespace MediaPortal.Mixer
 
     void OnVolumeChange()
     { 
-      bool wasMuted = _isMuted;
-      int lastVolume = _volume;
       _isMuted = _audioDefaultDevice.IsMuted;
       if (_waveVolume && OSInfo.OSInfo.Win8OrLater())
       {
         _isMutedVolume = (int) GetValue(_componentType, MixerControlType.Mute) == 1;
       }
-      _volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
 
-      if (ControlChanged != null && (wasMuted != _isMuted || lastVolume != _volume))
+      if (ControlChanged != null)
       {
         ControlChanged(null, null);
         if (_waveVolume && OSInfo.OSInfo.Win8OrLater() && (_isMutedVolume != IsMuted))
@@ -365,10 +362,7 @@ namespace MediaPortal.Mixer
             SetValue(_mixerControlDetailsMute, value);
             if (_waveVolume && OSInfo.OSInfo.Win8OrLater())
             {
-              if (_audioDefaultDevice != null)
-              {
-                _audioDefaultDevice.Mute(value);
-              }
+              _audioDefaultDevice?.Mute(value);
             }
           }
         }
@@ -378,17 +372,32 @@ namespace MediaPortal.Mixer
 
     public int Volume
     {
-      get { lock (this) return _volume; }
+      get
+      {
+        lock (this)
+        {
+          Log.Error("Current volume (device): " + _audioDefaultDevice.Volume);
+          Log.Error("Current volume (converted): " + _volume);
+
+          return _volume;
+        }
+      }
       set
       {
-        Log.Error("Setting volume to: " + value);
+        Log.Error("Setting volume to (raw): " + value);
+        _volume = value;
+
+        int volumePercentage = (int)Math.Round((double)(100 * value) / VolumeMaximum);
+
+        Log.Error("Setting volume to (%): " + volumePercentage);
+
         lock (this)
         {
           if (OSInfo.OSInfo.VistaOrLater() && (_componentType == MixerComponentType.DestinationSpeakers))
           {
             if (_audioDefaultDevice != null)
             {
-              _audioDefaultDevice.Volume = value;
+              _audioDefaultDevice.Volume = volumePercentage;
             }
           }
           else
@@ -399,7 +408,7 @@ namespace MediaPortal.Mixer
             {
               if (_audioDefaultDevice != null)
               {
-                _audioDefaultDevice.Volume = value;
+                _audioDefaultDevice.Volume = volumePercentage;
               }
             }
           }
@@ -407,7 +416,7 @@ namespace MediaPortal.Mixer
       }
     }
 
-    public int VolumeMaximum => 100;
+    public int VolumeMaximum => 65535;
 
     public int VolumeMinimum => 0;
 

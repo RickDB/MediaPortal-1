@@ -60,7 +60,7 @@ namespace MediaPortal.Player
 
           if (levelStyle == 0)
           {
-            _startupVolume = Math.Max(0, Math.Min(100, reader.GetValueAsInt("volume", "lastknown", 52428)));
+            _startupVolume = Math.Max(0, Math.Min(65535, reader.GetValueAsInt("volume", "lastknown", 52428)));
           }
 
           if (levelStyle == 1)
@@ -69,7 +69,7 @@ namespace MediaPortal.Player
 
           if (levelStyle == 2)
           {
-            _startupVolume = Math.Max(0, Math.Min(100, reader.GetValueAsInt("volume", "startuplevel", 52428)));
+            _startupVolume = Math.Max(0, Math.Min(65535, reader.GetValueAsInt("volume", "startuplevel", 52428)));
           }
 
           isDigital = reader.GetValueAsBool("volume", "digital", false);
@@ -144,7 +144,7 @@ namespace MediaPortal.Player
           {
               // classic volume table
             case 0:
-              return new VolumeHandler(new[] {0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100});
+              return new VolumeHandler(new[] {0, 6553, 13106, 19659, 26212, 32765, 39318, 45871, 52424, 58977, 65535});
               // windows default from registry
             case 1:
               return new VolumeHandler();
@@ -152,7 +152,9 @@ namespace MediaPortal.Player
             case 2:
               return new VolumeHandler(new[]
                                        {
-                                         0, 4, 8, 12, 16, 20, 24, 28, 32, 36, 40, 44, 48, 52, 56, 60, 64, 68, 72, 76, 80, 84, 88, 92, 96, 100
+                                         0, 1039, 1234, 1467, 1744, 2072, 2463, 2927, 3479, 4135, 4914, 5841, 6942, 8250,
+                                         9806
+                                         , 11654, 13851, 16462, 19565, 23253, 27636, 32845, 39037, 46395, 55141, 65535
                                        });
               // custom user setting
             case 3:
@@ -162,9 +164,9 @@ namespace MediaPortal.Player
             case 4:
               return new VolumeHandler(new[]
                                        {
-                                         0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55,
-                                         60,
-                                         65, 70, 80, 85, 90, 95 , 100
+                                         0, 4095, 8191, 12287, 16383, 20479, 24575, 28671, 32767, 36863, 40959, 45055,
+                                         49151,
+                                         53247, 57343, 61439, 65535
                                        });
             default:
               return new VolumeHandlerCustom();
@@ -353,7 +355,7 @@ namespace MediaPortal.Player
 
     public virtual int Maximum
     {
-      get { return 100; }
+      get { return 65535; }
     }
 
     public virtual int Minimum
@@ -427,10 +429,11 @@ namespace MediaPortal.Player
 
     private static readonly int[] SystemTable = new[]
                                                    {
-                                                     0, 5, 10, 15, 20, 25,
-                                                     30, 35, 40, 45, 50, 55,
-                                                     60, 65, 70, 75, 80, 90,
-                                                     95, 100
+                                                     0, 1039, 1234, 1467, 1744, 2072,
+                                                     2463, 2927, 3479, 4135, 4914, 5841,
+                                                     6942, 8250, 9806, 11654, 13851, 16462,
+                                                     19565, 23253, 27636, 32845, 39037, 46395,
+                                                     55141, 65535
                                                    };
 
     private int[] _volumeTable;

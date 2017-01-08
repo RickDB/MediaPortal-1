@@ -496,7 +496,7 @@ namespace MediaPortal.ProcessPlugins.MiniDisplayPlugin.Drivers
                     }
                     return;
                   }
-                  int volume = (int)VolumeHandler.Instance.Volume;
+                  int volume = VolumeHandler.Instance.Volume;
                   int num5 = int.Parse(s) * 0x28f;
                   int num6 = volume + num5;
                   if (num6 < 0)

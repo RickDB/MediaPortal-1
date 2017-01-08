@@ -155,7 +155,7 @@ namespace MediaPortal.ProcessPlugins.MiniDisplayPlugin.Drivers
         }
 
         //Volume calculation
-        int vol = (int)VolumeHandler.Instance.Volume / 6553;
+        int vol = VolumeHandler.Instance.Volume / 6553;
 
         if (GUIWindowManager.ActiveWindow == (int)GUIWindow.Window.WINDOW_TV ||
             GUIWindowManager.ActiveWindow == (int)GUIWindow.Window.WINDOW_TVFULLSCREEN)

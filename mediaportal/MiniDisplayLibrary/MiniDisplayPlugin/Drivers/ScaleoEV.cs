@@ -155,11 +155,11 @@ namespace MediaPortal.ProcessPlugins.MiniDisplayPlugin.Drivers
         int vol;
         if (VolumeHandler.Instance.Volume <= 13106)
         {
-          vol = (int)VolumeHandler.Instance.Volume / 6553 * 4;
+          vol = VolumeHandler.Instance.Volume / 6553 * 4;
         } //first 2 steps
         else
         {
-          vol = (int)VolumeHandler.Instance.Volume / 6553 * 2 + 4;
+          vol = VolumeHandler.Instance.Volume / 6553 * 2 + 4;
         }
 
         // Display symbols
