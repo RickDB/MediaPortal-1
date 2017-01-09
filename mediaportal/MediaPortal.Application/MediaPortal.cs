@@ -2254,9 +2254,6 @@ public class MediaPortalApp : D3D, IRender
               {
                 GUIGraphicsContext.DeviceAudioConnected--;
 
-                Log.Info("Main:reverting volume OSD back to default device.");
-                VolumeHandler.Instance._mixer.ChangeAudioDevice(string.Empty, true);
-
                 if (_stopOnLostAudioRenderer)
                 {
                   Log.Debug("Main: Stop playback");

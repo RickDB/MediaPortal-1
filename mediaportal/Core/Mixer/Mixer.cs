@@ -87,7 +87,7 @@ namespace MediaPortal.Mixer
                 OnDeviceChange();
               });
 
-              _volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
+              //volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
             }
           }
           catch (Exception)
@@ -102,7 +102,6 @@ namespace MediaPortal.Mixer
     {
       try
       {
-
         if (_audioController == null)
           _audioController = new CoreAudioController();
 

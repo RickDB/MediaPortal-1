@@ -1715,6 +1715,9 @@ namespace DShowNET.Helper
     public static void RemoveFilters(IGraphBuilder graphBuilder)
     {
       RemoveFilters(graphBuilder, String.Empty);
+
+      Log.Info("Main: playback stopped and reverting volume OSD back to default device.");
+      VolumeHandler.Instance._mixer.ChangeAudioDevice(string.Empty, true);
     }
 
     public static void RemoveFilters(IGraphBuilder graphBuilder, string filterName)
