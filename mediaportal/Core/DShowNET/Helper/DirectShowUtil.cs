@@ -97,6 +97,10 @@ namespace DShowNET.Helper
         IEnumFilters enumFilters;
         HResult hr = new HResult(graphBuilder.EnumFilters(out enumFilters));
         Log.Info("DirectShowUtils: First try to insert new audio renderer {0} ", strFilterName);
+
+        Log.Info("Attach volume handler device to audio render: "+ strFilterName);
+        VolumeHandler.Instance._mixer.ChangeAudioDevice(strFilterName, false);
+
         // next add the new one...
         foreach (Filter filter in Filters.AudioRenderers)
         {

@@ -98,6 +98,38 @@ namespace MediaPortal.Mixer
       }
     }
 
+    public void ChangeAudioDevice(string deviceName, bool setToDefault)
+    {
+      try
+      {
+
+        if (_audioController == null)
+          _audioController = new CoreAudioController();
+
+        if (setToDefault)
+        {
+          _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
+          return;
+        }
+
+        var deviceFound = _audioController.GetDevices()
+          .FirstOrDefault(device => device.FullName.Trim().ToLowerInvariant() == deviceName.Trim().ToLowerInvariant());
+
+        if (deviceFound != null)
+        {
+          _audioDefaultDevice = deviceFound;
+          Log.Error($"Mixer: changed audio device to : {deviceFound.FullName}");
+        }
+        else
+          Log.Error($"Mixer: ChangeAudioDevice failed because device {deviceName} was not found.");
+      }
+      catch (Exception ex)
+      {
+        Log.Error($"Mixer: error occured in ChangeAudioDevice: {ex}");
+      }
+
+    }
+
     void OnDeviceChange()
     {
       try

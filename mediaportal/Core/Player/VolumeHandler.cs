@@ -280,9 +280,9 @@ namespace MediaPortal.Player
         var showVolume = new Action(Action.ActionType.ACTION_SHOW_VOLUME, 0, 0);
         GUIWindowManager.OnAction(showVolume);
       }
-      catch (Exception e)
+      catch (Exception ex)
       {
-        Log.Info("VolumeHandler.HandleGUIOnControlChange: {0}", e.ToString());
+        Log.Error($"VolumeHandler: error occured in HandleGUIOnControlChange: {ex}");
       }
     }
 
