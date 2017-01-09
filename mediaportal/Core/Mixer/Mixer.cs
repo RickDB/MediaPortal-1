@@ -75,7 +75,6 @@ namespace MediaPortal.Mixer
     {
       lock (this)
       {
-        _waveVolume = isDigital;
           try
           {
             _audioController = new CoreAudioController();
@@ -119,8 +118,7 @@ namespace MediaPortal.Mixer
         // Determine which step in Mediaportal volume table we are.
         // This is needed as external volume control will supply them in a 0-100 format
 
-        int currentVolumePercentage = (int) (_audioDefaultDevice.Volume / 100 * 100);
-
+        int currentVolumePercentage = (int)(_audioDefaultDevice.Volume / 100 * 100);
         if (VolumeHandler.Instance._volumeTable == null)
         {
           VolumeHandler.CreateInstance();
@@ -134,18 +132,20 @@ namespace MediaPortal.Mixer
           return;
 
         int totalVolumeSteps = _volumeTable.Length;
+
         decimal volumePercentageDecimal = (decimal)currentVolumePercentage / 100;
+
         double index = Math.Floor((double)(volumePercentageDecimal * totalVolumeSteps));
 
         // Make sure we never go out of bounds
         if (index < 0)
           index = 0;
 
-        while (index >= _volumeTable.Length && index != 0)
+        while (index >= _volumeTable.Length)
           index--;
 
         int volumeStep = _volumeTable[(int)index];
-        _volume = volumeStep;
+        VolumeHandler.Instance.SetVolume(volumeStep);
       }
       catch (Exception ex)
       {
@@ -164,6 +164,7 @@ namespace MediaPortal.Mixer
           return;
 
         _audioDefaultDevice = newAudioDevice;
+        OnVolumeChange();
         Log.Debug($"Audio device changed detected (new): {_audioDefaultDevice.FullName}");
       }
       catch (Exception ex)
@@ -185,6 +186,7 @@ namespace MediaPortal.Mixer
         lock (this)
         {
           _audioDefaultDevice?.SetMuteAsync(value);
+          _isMuted = true;
         }
       }
     }
@@ -201,12 +203,16 @@ namespace MediaPortal.Mixer
       }
       set
       {
-        _volume = value;
-        int volumePercentage = (int)Math.Round((double)(100 * value) / VolumeMaximum);
-
         lock (this)
         {
-          _audioDefaultDevice.SetVolumeAsync(volumePercentage);
+          _volume = value;
+          int volumePercentage = (int)Math.Round((double)(100 * value) / VolumeMaximum);
+
+          if (volumePercentage <= 0)
+            IsMuted = true;
+          else
+            _audioDefaultDevice?.SetVolumeAsync(volumePercentage);
+
           VolumeHandler.Instance.mixer_UpdateVolume();
         }
       }
@@ -222,11 +228,9 @@ namespace MediaPortal.Mixer
 
     private IntPtr _handle;
     private bool _isMuted;
-    private bool _isMutedVolume;
     private int _volume;
     private CoreAudioController _audioController;
     private CoreAudioDevice _audioDefaultDevice;
-    private bool _waveVolume;
 
     #endregion Fields
   }
