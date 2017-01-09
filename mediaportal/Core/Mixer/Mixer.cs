@@ -151,15 +151,16 @@ namespace MediaPortal.Mixer
         {
           _volume = value;
           int volumePercentage = (int)Math.Round((double)(100 * value) / VolumeMaximum);
-          Log.Error("volumePercentage: " + volumePercentage);
-          if (volumePercentage == 0)
+
+          switch (volumePercentage)
           {
-            IsMuted = true;
-          }
-          else
-          {
-            _audioDefaultDevice?.SetVolumeAsync(volumePercentage);
-            IsMuted = false;
+            case 0:
+              IsMuted = true;
+              break;
+            default:
+              _audioDefaultDevice?.SetVolumeAsync(volumePercentage);
+              IsMuted = false;
+              break;
           }
 
           VolumeHandler.Instance.mixer_UpdateVolume();
