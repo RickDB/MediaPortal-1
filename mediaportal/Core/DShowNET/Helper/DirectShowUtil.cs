@@ -96,7 +96,13 @@ namespace DShowNET.Helper
         IBaseFilter NewFilter = null;
         IEnumFilters enumFilters;
         HResult hr = new HResult(graphBuilder.EnumFilters(out enumFilters));
+
+        Log.Info("Attach volume handler device to audio renderer: " + strFilterName);
+        VolumeHandler.Instance._mixer.ChangeAudioDevice(strFilterName, false);
+        GUIGraphicsContext.CurrentAudioRenderer = strFilterName;
+
         Log.Info("DirectShowUtils: First try to insert new audio renderer {0} ", strFilterName);
+
         // next add the new one...
         foreach (Filter filter in Filters.AudioRenderers)
         {
@@ -1711,6 +1717,10 @@ namespace DShowNET.Helper
     public static void RemoveFilters(IGraphBuilder graphBuilder)
     {
       RemoveFilters(graphBuilder, String.Empty);
+
+      Log.Info("Playback stopped and reverting volume OSD back to default device.");
+      VolumeHandler.Instance._mixer.ChangeAudioDevice(string.Empty, true);
+      GUIGraphicsContext.CurrentAudioRenderer = "";
     }
 
     public static void RemoveFilters(IGraphBuilder graphBuilder, string filterName)

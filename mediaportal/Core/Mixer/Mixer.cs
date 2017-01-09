@@ -19,8 +19,17 @@
 #endregion
 
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
+using AudioSwitcher.AudioApi;
+using AudioSwitcher.AudioApi.CoreAudio;
+using AudioSwitcher.AudioApi.Observables;
+using DirectShowLib;
+using EnterpriseDT.Util.Debug;
 using MediaPortal.ExtensionMethods;
+using MediaPortal.GUI.Library;
+using MediaPortal.Player;
 
 namespace MediaPortal.Mixer
 {
@@ -28,9 +37,6 @@ namespace MediaPortal.Mixer
   {
     #region Events
 
-    public event MixerEventHandler LineChanged;
-    public event MixerEventHandler ControlChanged;
-   
     #endregion Events
 
     #region Methods
@@ -52,35 +58,12 @@ namespace MediaPortal.Mixer
 
     public void Dispose()
     {
-      if (_mixerControlDetailsVolume != null)
-      {
-        _mixerControlDetailsVolume.SafeDispose();
-      }
-
-      if (_mixerControlDetailsMute != null)
-      {
-        _mixerControlDetailsMute.SafeDispose();
-      }
-
       if (_audioDefaultDevice != null)
       {
-        _audioDefaultDevice.OnVolumeNotification -= new AudioEndpointVolumeNotificationDelegate(AudioEndpointVolume_OnVolumeNotification);
         _audioDefaultDevice.SafeDispose();
       }
 
-      if (_mixerEventListener != null)
-      {
-        _mixerEventListener.LineChanged -= new MixerEventHandler(OnLineChanged);
-        _mixerEventListener.ControlChanged -= new MixerEventHandler(OnControlChanged);
-      }
-
       Close();
-
-      if (_mixerEventListener != null)
-      {
-        _mixerEventListener.DestroyHandle();
-        _mixerEventListener = null;
-      }
     }
 
     public void Open()
@@ -92,224 +75,83 @@ namespace MediaPortal.Mixer
     {
       lock (this)
       {
-        _waveVolume = isDigital;
-        if (isDigital)
+        try
         {
-          _componentType = MixerComponentType.SourceWave;
-        }
-        else
-        {
-          _componentType = MixerComponentType.DestinationSpeakers;
-        }
-        // not enough to change this..
-
-        // Use Endpoint Volume API for Vista/Win7 if master volume is selected and always for Win8 to handle muting of master volume
-        if ((OSInfo.OSInfo.VistaOrLater() && _componentType == MixerComponentType.DestinationSpeakers) ||
-            OSInfo.OSInfo.Win8OrLater())
-        {
-          try
+          _audioController = new CoreAudioController();
+          _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
+          if (_audioDefaultDevice != null)
           {
-            _audioDefaultDevice = new AEDev();
-            if (_audioDefaultDevice != null)
+            Log.Debug($"Mixer audio device: {_audioDefaultDevice.FullName}");
+
+            _audioController.AudioDeviceChanged.Subscribe(x =>
             {
-              _audioDefaultDevice.OnVolumeNotification +=
-                new AudioEndpointVolumeNotificationDelegate(AudioEndpointVolume_OnVolumeNotification);
+              OnDeviceChange();
+            });
 
-              _isMuted = _audioDefaultDevice.Muted;
-              _volume = (int) Math.Round(_audioDefaultDevice.MasterVolume*VolumeMaximum);
-            }
-          }
-          catch (Exception)
-          {
-            _isMuted = false;
-            _volume = 100;
+            //volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
           }
         }
-
-        // Use Windows Multimedia mixer functions for XP and for Vista and later if wave volume is selected
-        if (_componentType == MixerComponentType.SourceWave || !OSInfo.OSInfo.VistaOrLater())
+        catch (Exception)
         {
-          if (_mixerEventListener == null)
-          {
-            _mixerEventListener = new MixerEventListener();
-            _mixerEventListener.Start();
-          }
-          _mixerEventListener.LineChanged += new MixerEventHandler(OnLineChanged);
-          _mixerEventListener.ControlChanged += new MixerEventHandler(OnControlChanged);
-
-          MixerNativeMethods.MixerControl mc = new MixerNativeMethods.MixerControl();
-
-          mc.Size = 0;
-          mc.ControlId = 0;
-          mc.ControlType = MixerControlType.Volume;
-          mc.fdwControl = 0;
-          mc.MultipleItems = 0;
-          mc.ShortName = string.Empty;
-          mc.Name = string.Empty;
-          mc.Minimum = 0;
-          mc.Maximum = 0;
-          mc.Reserved = 0;
-
-          IntPtr handle = IntPtr.Zero;
-
-          if (
-            MixerNativeMethods.mixerOpen(ref handle, mixerIndex, _mixerEventListener.Handle, 0,
-                                         MixerFlags.CallbackWindow) !=
-            MixerError.None)
-          {
-            throw new InvalidOperationException();
-          }
-
-          _handle = handle;
-
-          _mixerControlDetailsVolume = GetControl(_componentType, MixerControlType.Volume);
-          _mixerControlDetailsMute = GetControl(_componentType, MixerControlType.Mute);
-
-          _isMuted = (int) GetValue(_componentType, MixerControlType.Mute) == 1;
-          _volume = (int) GetValue(_componentType, MixerControlType.Volume);
+          _isMuted = false;
+          _volume = VolumeMaximum;
         }
       }
     }
 
-    private MixerNativeMethods.MixerControlDetails GetControl(MixerComponentType componentType,
-                                                              MixerControlType controlType)
+    public void ChangeAudioDevice(string deviceName, bool setToDefault)
+    {
+      // Execute in thread as device list depending on system might take longer on some systems
+      new Thread(() =>
+      {
+        try
+        {
+          if (_audioController == null)
+            _audioController = new CoreAudioController();
+
+          if (setToDefault)
+          {
+            _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
+            return;
+          }
+
+          var deviceFound = _audioController.GetDevices()
+            .FirstOrDefault(device => device.FullName.Trim().ToLowerInvariant() == deviceName.Trim().ToLowerInvariant());
+
+          if (deviceFound != null)
+          {
+            _audioDefaultDevice = deviceFound;
+            Log.Info($"Mixer: changed audio device to : {deviceFound.FullName}");
+          }
+          else
+            Log.Info($"Mixer: ChangeAudioDevice failed because device {deviceName} was not found.");
+        }
+        catch (Exception ex)
+        {
+          Log.Error($"Mixer: error occured in ChangeAudioDevice: {ex}");
+        }
+      }).Start();
+    }
+
+    void OnDeviceChange()
     {
       try
       {
-        MixerNativeMethods.MixerLine mixerLine = new MixerNativeMethods.MixerLine(componentType);
+        Log.Debug($"Audio device changed detected (old): {_audioDefaultDevice.FullName}");
 
-        if (MixerNativeMethods.mixerGetLineInfoA(_handle, ref mixerLine, MixerLineFlags.ComponentType) !=
-            MixerError.None)
-        {
-          throw new InvalidOperationException("Mixer.GetControl.1");
-        }
+        var newAudioDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
+        if (_audioDefaultDevice.FullName == newAudioDevice.FullName)
+          return;
 
-        using (
-          MixerNativeMethods.MixerLineControls mixerLineControls =
-            new MixerNativeMethods.MixerLineControls(mixerLine.LineId, controlType))
-        {
-          if (MixerNativeMethods.mixerGetLineControlsA(_handle, mixerLineControls, MixerLineControlFlags.OneByType) !=
-              MixerError.None)
-          {
-            throw new InvalidOperationException("Mixer.GetControl.2");
-          }
-
-          MixerNativeMethods.MixerControl mixerControl =
-            (MixerNativeMethods.MixerControl)
-              Marshal.PtrToStructure(mixerLineControls.Data, typeof (MixerNativeMethods.MixerControl));
-
-          return new MixerNativeMethods.MixerControlDetails(mixerControl.ControlId);
-        }
+        _audioDefaultDevice = newAudioDevice;
+        Log.Debug($"Audio device changed detected (new): {_audioDefaultDevice.FullName}");
       }
-      catch (Exception)
+      catch (Exception ex)
       {
-        // Catch exception when audio device is disconnected
-      }
-      return null;
-    }
-
-    private object GetValue(MixerComponentType componentType, MixerControlType controlType)
-    {
-      try
-      {
-        MixerNativeMethods.MixerLine mixerLine = new MixerNativeMethods.MixerLine(componentType);
-
-        if (MixerNativeMethods.mixerGetLineInfoA(_handle, ref mixerLine, MixerLineFlags.ComponentType) !=
-            MixerError.None)
-        {
-          throw new InvalidOperationException("Mixer.OpenControl.1");
-        }
-
-        using (
-          MixerNativeMethods.MixerLineControls mixerLineControls =
-            new MixerNativeMethods.MixerLineControls(mixerLine.LineId, controlType))
-        {
-          MixerNativeMethods.mixerGetLineControlsA(_handle, mixerLineControls, MixerLineControlFlags.OneByType);
-          MixerNativeMethods.MixerControl mixerControl =
-            (MixerNativeMethods.MixerControl)
-              Marshal.PtrToStructure(mixerLineControls.Data, typeof(MixerNativeMethods.MixerControl));
-
-          using (
-            MixerNativeMethods.MixerControlDetails mixerControlDetails =
-              new MixerNativeMethods.MixerControlDetails(mixerControl.ControlId))
-          {
-            MixerNativeMethods.mixerGetControlDetailsA(_handle, mixerControlDetails, 0);
-
-            return Marshal.ReadInt32(mixerControlDetails.Data);
-          }
-        }
-      }
-      catch (Exception)
-      {
-        // Catch exception when audio device is disconnected
-      }
-      // Set Volume to 30000 when audio recover
-      return 30000;
-    }
-
-    private void SetValue(MixerNativeMethods.MixerControlDetails control, bool value)
-    {
-      if (control == null)
-      {
-        return;
-      }
-
-      Marshal.WriteInt32(control.Data, value ? 1 : 0);
-      MixerNativeMethods.mixerSetControlDetails(_handle, control, 0);
-    }
-
-    private void SetValue(MixerNativeMethods.MixerControlDetails control, int value)
-    {
-      if (control == null)
-      {
-        return;
-      }
-
-      Marshal.WriteInt32(control.Data, value);
-      MixerNativeMethods.mixerSetControlDetails(_handle, control, 0);
-    }
-
-    private void OnLineChanged(object sender, MixerEventArgs e)
-    {
-      if (LineChanged != null)
-      {
-        LineChanged(sender, e);
+        Log.Error($"Error occurred in OnDeviceChange(): {ex}");
       }
     }
 
-    private void OnControlChanged(object sender, MixerEventArgs e)
-    {
-      bool wasMuted = _isMuted;
-      int lastVolume = _volume;
-      _isMuted = (int)GetValue(_componentType, MixerControlType.Mute) == 1;
-      _volume = (int)GetValue(_componentType, MixerControlType.Volume);
-
-      if (ControlChanged != null && (wasMuted != _isMuted || lastVolume != _volume))
-      {
-        ControlChanged(sender, e);
-      }
-    }
-
-    void AudioEndpointVolume_OnVolumeNotification(AudioVolumeNotificationData data)
-    { 
-      bool wasMuted = _isMuted;
-      int lastVolume = _volume;
-      _isMuted = _audioDefaultDevice.Muted;
-      if (_waveVolume && OSInfo.OSInfo.Win8OrLater())
-      {
-        _isMutedVolume = (int) GetValue(_componentType, MixerControlType.Mute) == 1;
-      }
-      _volume = (int)Math.Round(_audioDefaultDevice.MasterVolume * VolumeMaximum);
-
-      if (ControlChanged != null && (wasMuted != _isMuted || lastVolume != _volume))
-      {
-        ControlChanged(null, null);
-        if (_waveVolume && OSInfo.OSInfo.Win8OrLater() && (_isMutedVolume != IsMuted))
-        {
-          SetValue(_mixerControlDetailsMute, _isMuted);
-        }
-      }
-    }
 
     #endregion Methods
 
@@ -322,25 +164,8 @@ namespace MediaPortal.Mixer
       {
         lock (this)
         {
-          if (OSInfo.OSInfo.VistaOrLater() && (_componentType == MixerComponentType.DestinationSpeakers))
-          {
-            if (_audioDefaultDevice != null)
-            {
-              _audioDefaultDevice.Muted = value;
-            }
-          }
-          else
-          {
-            //SetValue(_mixerControlDetailsMute, _isMuted = value);
-            SetValue(_mixerControlDetailsMute, value);
-            if (_waveVolume && OSInfo.OSInfo.Win8OrLater())
-            {
-              if (_audioDefaultDevice != null)
-              {
-                _audioDefaultDevice.Muted = value;
-              }
-            }
-          }
+          _audioDefaultDevice?.SetMuteAsync(value);
+          _isMuted = value;
         }
       }
     }
@@ -348,58 +173,49 @@ namespace MediaPortal.Mixer
 
     public int Volume
     {
-      get { lock (this) return _volume; }
+      get
+      {
+        lock (this)
+        {
+          return _volume;
+        }
+      }
       set
       {
         lock (this)
         {
-          if (OSInfo.OSInfo.VistaOrLater() && (_componentType == MixerComponentType.DestinationSpeakers))
+          _volume = value;
+          int volumePercentage = (int)Math.Round((double)(100 * value) / VolumeMaximum);
+
+          switch (volumePercentage)
           {
-            if (_audioDefaultDevice != null)
-            {
-              _audioDefaultDevice.MasterVolume = (float) ((float) (value)/(float) (this.VolumeMaximum));
-            }
+            case 0:
+              IsMuted = true;
+              break;
+            default:
+              _audioDefaultDevice?.SetVolumeAsync(volumePercentage);
+              IsMuted = false;
+              break;
           }
-          else
-          {
-            //SetValue(_mixerControlDetailsVolume, _volume = Math.Max(this.VolumeMinimum, Math.Min(this.VolumeMaximum, value)));
-            SetValue(_mixerControlDetailsVolume, Math.Max(this.VolumeMinimum, Math.Min(this.VolumeMaximum, value)));
-            if (_waveVolume && OSInfo.OSInfo.Win8OrLater())
-            {
-              if (_audioDefaultDevice != null)
-              {
-                _audioDefaultDevice.MasterVolume = (float) ((float) (value)/(float) (this.VolumeMaximum));
-              }
-            }
-          }
+
+          VolumeHandler.Instance.mixer_UpdateVolume();
         }
       }
     }
 
-    public int VolumeMaximum
-    {
-      get { return 65535; }
-    }
+    public int VolumeMaximum => 65535;
 
-    public int VolumeMinimum
-    {
-      get { return 0; }
-    }
+    public int VolumeMinimum => 0;
 
     #endregion Properties
 
     #region Fields
 
-    private MixerComponentType _componentType = MixerComponentType.DestinationSpeakers;
     private IntPtr _handle;
     private bool _isMuted;
-    private bool _isMutedVolume;
-    private static MixerEventListener _mixerEventListener;
     private int _volume;
-    private MixerNativeMethods.MixerControlDetails _mixerControlDetailsVolume;
-    private MixerNativeMethods.MixerControlDetails _mixerControlDetailsMute;
-    private AEDev _audioDefaultDevice;
-    private bool _waveVolume;
+    private CoreAudioController _audioController;
+    private CoreAudioDevice _audioDefaultDevice;
 
     #endregion Fields
   }

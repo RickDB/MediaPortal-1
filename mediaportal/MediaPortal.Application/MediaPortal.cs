@@ -18,6 +18,7 @@
 
 #endregion
 
+using System.Linq;
 using DirectShowLib;
 
 #region usings
@@ -58,6 +59,8 @@ using Microsoft.DirectX.Direct3D;
 using Microsoft.Win32;
 using Action = MediaPortal.GUI.Library.Action;
 using Timer = System.Timers.Timer;
+using AudioSwitcher.AudioApi.CoreAudio;
+using System.Collections.Generic;
 
 #endregion
 
@@ -214,6 +217,9 @@ public class MediaPortalApp : D3D, IRender
 
   // Framegrabber instance
   private FrameGrabber grabber = FrameGrabber.GetInstance();
+
+  // Core Audio controller
+  CoreAudioController _audioController = new CoreAudioController();
 
   [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Ansi)]
   // ReSharper disable InconsistentNaming
@@ -2247,7 +2253,7 @@ public class MediaPortalApp : D3D, IRender
               try
               {
                 GUIGraphicsContext.DeviceAudioConnected--;
-                if (_stopOnLostAudioRenderer)
+                if (_stopOnLostAudioRenderer && GUIGraphicsContext.CurrentAudioRenderer.Trim().ToLowerInvariant() == deviceName.Trim().ToLowerInvariant())
                 {
                   Log.Debug("Main: Stop playback");
                   g_Player.Stop();
@@ -2268,7 +2274,7 @@ public class MediaPortalApp : D3D, IRender
               try
               {
                 GUIGraphicsContext.DeviceAudioConnected++;
-                if (_stopOnLostAudioRenderer)
+                if (_stopOnLostAudioRenderer && GUIGraphicsContext.CurrentAudioRenderer.Trim().ToLowerInvariant() == deviceName.Trim().ToLowerInvariant())
                 {
                   Log.Debug("Main: Stop playback");
                   g_Player.Stop();
@@ -3096,39 +3102,35 @@ public class MediaPortalApp : D3D, IRender
     Log.Debug("Main: Auto play start listening");
     AutoPlay.StartListening();
 
+    // Count connected audio devices
     GUIGraphicsContext.DeviceAudioConnected = 0;
-    DsDevice[] devices = DsDevice.GetDevicesOfCat(FilterCategory.AMKSAudio);    // KSCATEGORY_AUDIO
-    if (devices != null)
+    try
     {
-      GUIGraphicsContext.DeviceAudioConnected += devices.Length;
-      foreach (DsDevice d in devices)
+      // Count connected audio playback devices
+      if (_audioController == null)
       {
-        d.Dispose();
+        _audioController = new CoreAudioController();
+      }
+
+      if (_audioController != null)
+      {
+        IEnumerable<CoreAudioDevice> ConnectedAudioDevices =
+          _audioController.GetDevices(AudioSwitcher.AudioApi.DeviceType.Playback,
+            AudioSwitcher.AudioApi.DeviceState.Active);
+
+        GUIGraphicsContext.DeviceAudioConnected = ConnectedAudioDevices.Count();
       }
     }
-    devices = DsDevice.GetDevicesOfCat(FilterCategory.AMKSRender);    // KSCATEGORY_RENDER
-    if (devices != null)
+    catch (Exception ex)
     {
-      GUIGraphicsContext.DeviceAudioConnected += devices.Length;
-      foreach (DsDevice d in devices)
-      {
-        d.Dispose();
-      }
-    }
-    devices = DsDevice.GetDevicesOfCat(RDP_REMOTE_AUDIO);
-    if (devices != null)
-    {
-      GUIGraphicsContext.DeviceAudioConnected += devices.Length;
-      foreach (DsDevice d in devices)
-      {
-        d.Dispose();
-      }
+      Log.Error($"Main: audio renderer count failed {ex}");
     }
 
     Log.Debug("Main: audio renderer count at startup = {0}", GUIGraphicsContext.DeviceAudioConnected);
 
+    // Count connected video devices
     GUIGraphicsContext.DeviceVideoConnected = 0;
-    devices = DsDevice.GetDevicesOfCat(FilterCategory.AMKSVideo);    // KSCATEGORY_VIDEO
+    DsDevice[] devices = DsDevice.GetDevicesOfCat(FilterCategory.AMKSVideo);    // KSCATEGORY_VIDEO
     if (devices != null)
     {
       GUIGraphicsContext.DeviceVideoConnected += devices.Length;
