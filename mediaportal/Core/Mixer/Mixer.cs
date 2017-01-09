@@ -21,6 +21,7 @@
 using System;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
 using AudioSwitcher.AudioApi;
 using AudioSwitcher.AudioApi.CoreAudio;
 using AudioSwitcher.AudioApi.Observables;
@@ -100,33 +101,36 @@ namespace MediaPortal.Mixer
 
     public void ChangeAudioDevice(string deviceName, bool setToDefault)
     {
-      try
+      // Execute in thread as device list depending on system might take longer on some systems
+      new Thread(() =>
       {
-        if (_audioController == null)
-          _audioController = new CoreAudioController();
-
-        if (setToDefault)
+        try
         {
-          _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
-          return;
+          if (_audioController == null)
+            _audioController = new CoreAudioController();
+
+          if (setToDefault)
+          {
+            _audioDefaultDevice = _audioController.GetDefaultDevice(DeviceType.Playback, Role.Multimedia);
+            return;
+          }
+
+          var deviceFound = _audioController.GetDevices()
+            .FirstOrDefault(device => device.FullName.Trim().ToLowerInvariant() == deviceName.Trim().ToLowerInvariant());
+
+          if (deviceFound != null)
+          {
+            _audioDefaultDevice = deviceFound;
+            Log.Info($"Mixer: changed audio device to : {deviceFound.FullName}");
+          }
+          else
+            Log.Info($"Mixer: ChangeAudioDevice failed because device {deviceName} was not found.");
         }
-
-        var deviceFound = _audioController.GetDevices()
-          .FirstOrDefault(device => device.FullName.Trim().ToLowerInvariant() == deviceName.Trim().ToLowerInvariant());
-
-        if (deviceFound != null)
+        catch (Exception ex)
         {
-          _audioDefaultDevice = deviceFound;
-          Log.Info($"Mixer: changed audio device to : {deviceFound.FullName}");
+          Log.Error($"Mixer: error occured in ChangeAudioDevice: {ex}");
         }
-        else
-          Log.Info($"Mixer: ChangeAudioDevice failed because device {deviceName} was not found.");
-      }
-      catch (Exception ex)
-      {
-        Log.Error($"Mixer: error occured in ChangeAudioDevice: {ex}");
-      }
-
+      }).Start();
     }
 
     void OnDeviceChange()

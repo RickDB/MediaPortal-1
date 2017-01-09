@@ -1716,7 +1716,7 @@ namespace DShowNET.Helper
     {
       RemoveFilters(graphBuilder, String.Empty);
 
-      Log.Info("Main: playback stopped and reverting volume OSD back to default device.");
+      Log.Info("Playback stopped and reverting volume OSD back to default device.");
       VolumeHandler.Instance._mixer.ChangeAudioDevice(string.Empty, true);
     }
 
