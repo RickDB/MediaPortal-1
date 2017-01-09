@@ -85,7 +85,7 @@ namespace MediaPortal.Mixer
 
             _audioController.AudioDeviceChanged.Subscribe(x =>
             {
-              OnDeviceChange();
+              //OnDeviceChange();
             });
 
             //volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
