@@ -36,7 +36,6 @@ namespace MediaPortal.Mixer
   {
     #region Events
 
-    public int[] _volumeTable;
     #endregion Events
 
     #region Methods
@@ -83,18 +82,11 @@ namespace MediaPortal.Mixer
             {
               Log.Debug($"Mixer audio device: {_audioDefaultDevice.FullName}");
 
-              // AudioEndpointVolume_OnVolumeNotification
-              _audioDefaultDevice.VolumeChanged.Subscribe(x =>
-              {
-                OnVolumeChange();
-              });
               _audioController.AudioDeviceChanged.Subscribe(x =>
               {
                 OnDeviceChange();
               });
 
-
-              _isMuted = _audioDefaultDevice.IsMuted;
               _volume = (int)Math.Round(_audioDefaultDevice.Volume * VolumeMaximum);
             }
           }
@@ -103,53 +95,6 @@ namespace MediaPortal.Mixer
             _isMuted = false;
             _volume = VolumeMaximum;
           }
-      }
-    }
-
-    void OnVolumeChange()
-    {
-      try
-      {
-        if (_audioDefaultDevice == null)
-          return;
-
-        _isMuted = _audioDefaultDevice.IsMuted;
-
-        // Determine which step in Mediaportal volume table we are.
-        // This is needed as external volume control will supply them in a 0-100 format
-
-        int currentVolumePercentage = (int)(_audioDefaultDevice.Volume / 100 * 100);
-        if (VolumeHandler.Instance._volumeTable == null)
-        {
-          VolumeHandler.CreateInstance();
-        }
-
-        _volumeTable = VolumeHandler.Instance._volumeTable;
-
-        if (_volumeTable == null)
-          return;
-        if (_volumeTable.Length == 0)
-          return;
-
-        int totalVolumeSteps = _volumeTable.Length;
-
-        decimal volumePercentageDecimal = (decimal)currentVolumePercentage / 100;
-
-        double index = Math.Floor((double)(volumePercentageDecimal * totalVolumeSteps));
-
-        // Make sure we never go out of bounds
-        if (index < 0)
-          index = 0;
-
-        while (index >= _volumeTable.Length)
-          index--;
-
-        int volumeStep = _volumeTable[(int)index];
-        VolumeHandler.Instance.SetVolume(volumeStep);
-      }
-      catch (Exception ex)
-      {
-        Log.Error($"Error occurred in OnVolumeChange(): {ex}");
       }
     }
 
@@ -164,7 +109,6 @@ namespace MediaPortal.Mixer
           return;
 
         _audioDefaultDevice = newAudioDevice;
-        OnVolumeChange();
         Log.Debug($"Audio device changed detected (new): {_audioDefaultDevice.FullName}");
       }
       catch (Exception ex)
@@ -186,7 +130,7 @@ namespace MediaPortal.Mixer
         lock (this)
         {
           _audioDefaultDevice?.SetMuteAsync(value);
-          _isMuted = true;
+          _isMuted = value;
         }
       }
     }
@@ -207,11 +151,16 @@ namespace MediaPortal.Mixer
         {
           _volume = value;
           int volumePercentage = (int)Math.Round((double)(100 * value) / VolumeMaximum);
-
-          if (volumePercentage <= 0)
+          Log.Error("volumePercentage: " + volumePercentage);
+          if (volumePercentage == 0)
+          {
             IsMuted = true;
+          }
           else
+          {
             _audioDefaultDevice?.SetVolumeAsync(volumePercentage);
+            IsMuted = false;
+          }
 
           VolumeHandler.Instance.mixer_UpdateVolume();
         }

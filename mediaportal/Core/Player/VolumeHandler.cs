@@ -245,7 +245,7 @@ namespace MediaPortal.Player
       }
     }
 
-    public virtual void SetVolume(int volume)
+    protected virtual void SetVolume(int volume)
     {
       if (_mixer != null)
       {
