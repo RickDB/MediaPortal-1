@@ -202,10 +202,7 @@
     <ErrorReport>prompt</ErrorReport>
   </PropertyGroup>
   <ItemGroup>
-    <Reference Include="AudioSwitcher.AudioApi, Version=4.0.0.308, Culture=neutral, PublicKeyToken=fda5729e2db3a64f, processorArchitecture=MSIL">
-      <HintPath>..\..\Packages\AudioSwitcher.AudioApi.4.0.0-alpha5\lib\net40\AudioSwitcher.AudioApi.dll</HintPath>
-      <Private>True</Private>
-    </Reference>
+    <Reference Include="AudioSwitcher.AudioApi, Version=4.0.0.308, Culture=neutral, PublicKeyToken=fda5729e2db3a64f" />
     <Reference Include="AudioSwitcher.AudioApi.CoreAudio, Version=4.0.0.308, Culture=neutral, PublicKeyToken=fda5729e2db3a64f, processorArchitecture=MSIL">
       <HintPath>..\..\Packages\AudioSwitcher.AudioApi.CoreAudio.4.0.0-alpha5\lib\net40\AudioSwitcher.AudioApi.CoreAudio.dll</HintPath>
       <Private>True</Private>
