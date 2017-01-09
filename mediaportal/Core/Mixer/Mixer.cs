@@ -118,10 +118,10 @@ namespace MediaPortal.Mixer
         if (deviceFound != null)
         {
           _audioDefaultDevice = deviceFound;
-          Log.Error($"Mixer: changed audio device to : {deviceFound.FullName}");
+          Log.Info($"Mixer: changed audio device to : {deviceFound.FullName}");
         }
         else
-          Log.Error($"Mixer: ChangeAudioDevice failed because device {deviceName} was not found.");
+          Log.Info($"Mixer: ChangeAudioDevice failed because device {deviceName} was not found.");
       }
       catch (Exception ex)
       {
